@@ -1,0 +1,41 @@
+:root {
+  --bg: #0b0b0f;
+  --panel: #14141b;
+  --border: #23232e;
+  --text: #e8e8ee;
+  --muted: #8a8a99;
+  --accent: #b4232f;
+  --ok: #2fbf71;
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Ubuntu, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+
+.shell { display: flex; flex-direction: column; height: 100%; max-width: 860px; margin: 0 auto; padding: 20px; gap: 16px; }
+
+.top { display: flex; align-items: center; justify-content: space-between; }
+.top h1 { font-size: 20px; font-weight: 600; letter-spacing: 0.02em; margin: 0; }
+
+.status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.status.on .dot { background: var(--ok); }
+
+.log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px; }
+.empty { color: var(--muted); text-align: center; margin-top: 30vh; }
+
+.bubble { max-width: 75%; padding: 10px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--border); }
+.bubble p { margin: 0; line-height: 1.5; white-space: pre-wrap; }
+.bubble small { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; }
+.bubble.boss { align-self: flex-end; background: #1e1e2a; }
+.bubble.boogeyman { align-self: flex-start; }
+.bubble.error { align-self: flex-start; border-color: var(--accent); color: #ff9aa2; }
+
+.composer { display: flex; gap: 8px; }
+.composer input { flex: 1; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 15px; outline: none; }
+.composer input:focus { border-color: #3a3a4a; }
+.composer button { padding: 0 20px; border-radius: 10px; border: none; background: var(--accent); color: white; font-weight: 600; cursor: pointer; }
+.composer button:disabled { opacity: 0.4; cursor: default; }
