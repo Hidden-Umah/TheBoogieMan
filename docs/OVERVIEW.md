@@ -79,7 +79,15 @@ Right now step 4 just echoes. In Phase 1, `handle()` becomes the Claude agent lo
 TheBoogieMan/
 ├── app/                      # The desktop app (Tauri)
 │   ├── src/                  # React + TypeScript UI (the face)
-│   │   ├── App.tsx           #   chat screen + brain status pill
+│   │   ├── App.tsx           #   boot → HUD, wires everything to the brain
+│   │   ├── components/
+│   │   │   ├── BootScreen.tsx  # "Welcome to the Boogeyman" + loading, waits for the brain
+│   │   │   ├── Starfield.tsx   # 3D warp starfield (canvas), speeds up while thinking
+│   │   │   ├── Eye.tsx         # cyborg eye: counter-rotating rings + voice ring
+│   │   │   ├── LogPanel.tsx    # streaming system log
+│   │   │   ├── InfoPanel.tsx   # result screen that swipes in and types out
+│   │   │   ├── CommandBar.tsx  # the >_ input
+│   │   │   └── HudFrame.tsx    # corners, clock, link/latency/state
 │   │   └── lib/brain.ts      #   typed functions to talk to Rust
 │   └── src-tauri/            # Rust core (the body)
 │       ├── src/lib.rs        #   app startup, commands React can call
