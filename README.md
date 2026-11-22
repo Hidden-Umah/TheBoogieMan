@@ -16,6 +16,8 @@ React --invoke--> Rust --WebSocket--> Python
 
 Every message uses one shape, `{ id, type, payload }`. See [`shared/messages.md`](shared/messages.md).
 
+**New here? Read [`docs/OVERVIEW.md`](docs/OVERVIEW.md)**: what we are building, why three languages, and how they connect.
+
 ## Setup (Ubuntu 22.04 / 24.04)
 
 **1. System packages for Tauri**
