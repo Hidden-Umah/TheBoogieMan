@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Bloom, ChromaticAberration, EffectComposer, Noise, Vignette } from '@react-three/postprocessing'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { audio } from '../lib/audio'
 import type { EyeState, Mode } from '../types'
 import DataArcs from './DataArcs'
 import DotCore from './DotCore'
@@ -17,6 +18,7 @@ const PALETTE = {
 /** Per-state targets the scene eases toward. */
 const TARGETS: Record<EyeState, { speed: number; pupil: number; energy: number; warp: number }> = {
   idle: { speed: 1, pupil: 0.3, energy: 0.12, warp: 1 },
+  listening: { speed: 1.3, pupil: 0.26, energy: 0.3, warp: 1.2 },
   thinking: { speed: 4.5, pupil: 0.17, energy: 0.85, warp: 5 },
   speaking: { speed: 1.6, pupil: 0.34, energy: 0.55, warp: 1.6 },
   offline: { speed: 0.15, pupil: 0.45, energy: 0, warp: 0.2 },
@@ -69,10 +71,13 @@ function useLive(state: EyeState, mode: Mode) {
     l.line.copy(PALETTE.normal.line).lerp(PALETTE.devil.line, l.devil)
     l.star.copy(PALETTE.normal.star).lerp(PALETTE.devil.star, l.devil)
     l.bg.copy(PALETTE.normal.bg).lerp(PALETTE.devil.bg, l.devil)
-    // Synthetic voice level while speaking; Phase 2 replaces this with real audio.
-    const tt = performance.now() / 1000
-    const target =
-      state === 'speaking' ? 0.35 + 0.65 * Math.abs(Math.sin(tt * 9) * Math.sin(tt * 3.7 + 1)) : 0
+    // Real audio level from the brain when it's flowing; synthetic only if speaking without audio.
+    const now = performance.now()
+    const fresh = now - audio.at < 300
+    const tt = now / 1000
+    let target = 0
+    if (fresh) target = audio.source === 'mic' ? audio.level * 0.6 : audio.level
+    else if (state === 'speaking') target = 0.35 + 0.65 * Math.abs(Math.sin(tt * 9) * Math.sin(tt * 3.7 + 1))
     l.level += (target - l.level) * (1 - Math.exp(-dt * 18))
   })
   return live

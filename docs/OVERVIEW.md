@@ -103,7 +103,12 @@ TheBoogieMan/
 │       ├── src/stats.rs      #   live CPU / RAM / uptime for the HUD (sysinfo)
 │       └── tauri.conf.json   #   window, app id, bundling
 ├── brain/                    # Python (the brain)
-│   ├── main.py               #   FastAPI: /health + /ws, handle()
+│   ├── main.py               #   FastAPI: /health + /ws, handle(), broadcasts events
+│   ├── voice.py              #   voice loop: listen → transcribe → reply → speak
+│   ├── audio.py              #   mic capture, speech detection (VAD), playback
+│   ├── elevenlabs.py         #   ElevenLabs speech-to-text + streaming text-to-speech
+│   ├── reply.py              #   what he says (Claude, or built-in lines without a key)
+│   ├── config.py             #   settings from brain/.env
 │   ├── test_main.py          #   tests
 │   └── requirements*.txt
 ├── shared/messages.md        # The message protocol
@@ -132,6 +137,18 @@ When you run `make dev`:
 If the pill stays red, check the terminal. The brain's output is printed there with a `[brain]` prefix.
 
 ---
+
+## Voice
+
+You talk; he answers. No text box.
+
+1. **Python listens on the mic** and detects when you start and stop talking (it calibrates to your room's noise first).
+2. **ElevenLabs Scribe** turns what you said into text.
+3. **Claude** writes a short spoken reply (or a built-in line if no key is set).
+4. **ElevenLabs** turns the reply into his voice (Brian by default), streamed and played as it arrives.
+5. The **real audio level** is sent to the UI ~20 times a second, so the core pulses with his actual voice, and with yours while you talk.
+
+He doesn't listen while he talks, so he can't hear himself. Captions under the core show what you said and what he's saying.
 
 ## Modes
 

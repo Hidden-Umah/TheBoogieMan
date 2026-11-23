@@ -239,3 +239,15 @@ kbd { font-family: var(--mono); border: 1px solid var(--line-strong); border-rad
   text-shadow: 0 0 24px #ff1030; white-space: nowrap; animation: shText 1.25s steps(1) both;
 }
 @keyframes shText { 0%, 26% { opacity: 0; } 30%, 36%, 44%, 60% { opacity: 1; } 33%, 40% { opacity: 0.2; } 64%, 100% { opacity: 0; } }
+
+/* ───────── Captions (replaces the text box) ───────── */
+.captions { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); width: min(760px, 70vw); display: flex; flex-direction: column; align-items: center; gap: 14px; z-index: 6; text-align: center; }
+.cap-lines { display: flex; flex-direction: column; gap: 8px; opacity: 0; transform: translateY(8px); transition: opacity 0.6s ease, transform 0.6s ease; }
+.cap-lines.show { opacity: 1; transform: none; }
+.cap-you { font-size: 12px; letter-spacing: 0.06em; color: var(--muted); }
+.cap-you::before { content: 'YOU  '; color: var(--accent); letter-spacing: 0.2em; font-size: 9.5px; }
+.cap-him { font-size: 17px; line-height: 1.5; color: var(--fg); text-shadow: 0 0 18px rgba(0, 0, 0, 0.9), 0 0 2px #000; }
+.voice-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 9.5px; letter-spacing: 0.26em; color: var(--muted); }
+.voice-chip.vs-hearing, .voice-chip.vs-speaking { color: var(--fg); }
+.voice-chip.vs-error, .voice-chip.vs-unavailable, .voice-chip.vs-muted { color: var(--accent); }
+.chip-detail { letter-spacing: 0.08em; text-transform: none; color: var(--muted); }
