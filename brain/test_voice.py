@@ -220,3 +220,32 @@ def test_spectrum_finds_the_tone():
     assert len(bands) == 24 and max(bands) > 0.6
     peak = bands.index(max(bands))
     assert bands[0] < 0.3 and 8 < peak < 20  # 1 kHz sits in the middle of an 80 Hz..8 kHz log scale
+
+
+def test_shutdown_commands():
+    from commands import Commands
+
+    now = [0.0]
+    c = Commands(clock=lambda: now[0])
+    # Plain request asks first; yes confirms.
+    ask, action = c.handle("Shut down.")
+    assert action is None and "?" in ask
+    say, action = c.handle("Yes")
+    assert action == "shutdown" and "care" in say.lower()
+    # "now" skips the question.
+    assert c.handle("Shut down now")[1] == "shutdown"
+    assert c.handle("Boogeyman, turn yourself off immediately!")[1] == "shutdown"
+    # "no" cancels.
+    c.handle("Can you shut down?")
+    assert c.handle("No, stay")[1] is None and c.pending_since is None
+    # A late yes doesn't count.
+    c.handle("shutdown")
+    now[0] += 31
+    assert c.handle("yes") is None
+    # The computer isn't ours to switch off (yet).
+    say, action = c.handle("shut down the computer")
+    assert action is None and "computer" in say.lower()
+    # Ordinary talk isn't a command.
+    assert c.handle("what was the shutdown rate of factories in Ghana last year") is None
+    assert c.handle("tell me a joke") is None
+    assert c.pending_since is None

@@ -53,8 +53,10 @@ class VoiceLoop:
         tts: Callable[[str], AsyncIterator[bytes]] | None,
         reply: Callable[[str], Awaitable[str]],
         tts_rate: int = 24000,
+        after_turn: Callable[[], Awaitable[None]] | None = None,
     ):
         self.tts_rate = tts_rate
+        self.after_turn = after_turn  # runs once the reply has been spoken (e.g. shutdown)
         self.emit = emit
         self.mic = mic
         self.speaker = speaker
@@ -124,6 +126,8 @@ class VoiceLoop:
         out = await self.reply(text)
         await self.emit("voice.reply", {"text": out})
         await self.say(out, locked=True)
+        if self.after_turn:
+            await self.after_turn()
         return out
 
     async def say(self, text: str, locked: bool = False) -> None:

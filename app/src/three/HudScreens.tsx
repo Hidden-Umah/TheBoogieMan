@@ -15,9 +15,9 @@ import { hud } from '../hud/store'
 
 const R = 30 // radius of the curve (bigger = gentler)
 const ZC = 20 // cylinder centre sits this far behind the camera -> screen 10 away
-const INNER = THREE.MathUtils.degToRad(7.3) // inner edge, measured at the curve's centre
-const OUTER = THREE.MathUtils.degToRad(15.6) // outer edge
-const SPAN = THREE.MathUtils.degToRad(17) // half-width of the whole "monitor"
+const INNER = THREE.MathUtils.degToRad(9.2) // inner edge, measured at the curve's centre
+const OUTER = THREE.MathUtils.degToRad(16.3) // outer edge
+const SPAN = THREE.MathUtils.degToRad(17.8) // half-width of the whole "monitor"
 const H = 3.7 // height of one screen
 const GAP = 0.36
 const TEX_W = 900

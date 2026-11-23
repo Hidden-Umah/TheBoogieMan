@@ -50,6 +50,7 @@ Events (brain → React, empty `id`, arrive as the `brain-message` Tauri event):
 | `voice.transcript` | `{ "text" }`: what the boss said                                                          |
 | `voice.reply`      | `{ "text" }`: what he's saying back                                                       |
 | `voice.spectrum`   | `{ "source": "mic" / "voice", "bands": [24 × 0..1] }`: log-spaced 80 Hz–8 kHz             |
+| `app.shutdown`     | `{}`: he has said goodbye; the UI powers down and quits                                    |
 | `memory.updated`   | `{ "facts": [{id, text, at}], "turns" }`                                                  |
 
 Memory requests: `memory.get` → `memory.updated`; `memory.forget {id}` → `memory.updated`.

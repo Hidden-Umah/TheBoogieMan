@@ -84,6 +84,7 @@ TheBoogieMan/
 │   │   │   ├── Scene.tsx       # three.js scene: eye, rings, voice ring, space, camera, bloom, devil palette
 │   │   │   ├── DataArcs.tsx    # fragmented radial data rings (wireframe cells + hot orange cells)
 │   │   │   ├── DotCore.tsx     # normal-mode core: 3D dot-matrix sphere that breathes / ripples / pulses
+│   │   │   ├── VideoBackground.tsx # blurred background video (Ctrl+B)
 │   │   │   ├── HudScreens.tsx  # curved side screens: one gentle ultrawide-monitor curve, head-turn with the mouse
 │   │   │   └── eyeShader.ts    # GLSL for the cyborg eyeball (iris, pupil / devil slit, sclera panels)
 │   │   ├── components/
@@ -115,6 +116,7 @@ TheBoogieMan/
 │   ├── persona.md            #   his personality (edit me)
 │   ├── memory.py             #   long-term memory: facts + recent conversation on disk
 │   ├── config.py             #   settings from brain/.env
+│   ├── commands.py           #   built-in commands before the LLM (shutdown)
 │   ├── test_main.py          #   tests
 │   └── requirements*.txt
 ├── shared/messages.md        # The message protocol
@@ -155,6 +157,12 @@ You talk; he answers. No text box.
 5. The **real audio level** is sent to the UI ~20 times a second, so the core pulses with his actual voice, and with yours while you talk.
 
 He doesn't listen while he talks, so he can't hear himself. Captions under the core show what you said and what he's saying.
+
+## Commands
+
+Some things shouldn't wait for an AI. `brain/commands.py` checks every utterance first:
+
+- **Shutdown**: "shut down" asks for confirmation (valid for 30 s); "shut down now" goes straight away. He says goodbye, the brain sends `app.shutdown`, the UI plays a CRT-style power-off, and Rust's `quit_app` closes the app (the brain dies with it). This shuts down the Boogeyman, not the computer.
 
 ## Personality and memory
 

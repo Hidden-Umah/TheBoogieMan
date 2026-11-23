@@ -23,6 +23,7 @@ from typing import Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 import config
+from commands import Commands
 from memory import Memory
 from reply import Replier
 from voice import VoiceLoop
@@ -75,8 +76,28 @@ replier = Replier(
     memory=memory,
     on_memory=push_memory,
 )
-voice = VoiceLoop(hub.emit, None, None, None, None, replier.reply)
-state: dict[str, Any] = {"greeted": False, "capabilities": {}}
+commands = Commands()
+state: dict[str, Any] = {"greeted": False, "capabilities": {}, "action": None}
+
+
+async def think(text: str) -> str:
+    """Built-in commands first (instant, offline), then the LLM."""
+    hit = commands.handle(text)
+    if hit:
+        out, state["action"] = hit
+        log.info("command: %r -> %s", text, state["action"] or "reply")
+        return out
+    return await replier.reply(text)
+
+
+async def after_turn() -> None:
+    """Runs after a reply has been spoken."""
+    action, state["action"] = state["action"], None
+    if action == "shutdown":
+        await hub.emit("app.shutdown", {})
+
+
+voice = VoiceLoop(hub.emit, None, None, None, None, think, after_turn=after_turn)
 tasks: set[asyncio.Task] = set()
 
 
@@ -147,8 +168,13 @@ async def handle(message: dict[str, Any]) -> dict[str, Any]:
 
     if msg_type == "user.message":
         text = str(payload.get("text", "")).strip()
-        out = await replier.reply(text) if text else "Welcome, boss. I'm listening."
-        spawn(voice.say(out))
+        out = await think(text) if text else "Welcome, boss. I'm listening."
+
+        async def speak_then_act() -> None:
+            await voice.say(out)
+            await after_turn()
+
+        spawn(speak_then_act())
         return make_message(
             msg_id,
             "brain.reply",

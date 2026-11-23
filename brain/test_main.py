@@ -47,5 +47,13 @@ def test_ws_roundtrip():
         assert ack["type"] == "voice.ack"
         assert ack["payload"]["capabilities"]["brain"] == "built-in"
 
+        # Shutdown: asks, then confirms and announces the shutdown.
+        ws.send_json({"id": "6", "type": "user.message", "payload": {"text": "shut down"}})
+        assert "?" in recv_reply(ws, "6")["payload"]["text"]
+        ws.send_json({"id": "7", "type": "user.message", "payload": {"text": "yes"}})
+        assert recv_reply(ws, "7")["type"] == "brain.reply"
+        while (msg := ws.receive_json())["type"] != "app.shutdown":
+            pass
+
         ws.send_json({"id": "5", "type": "nope", "payload": {}})
         assert recv_reply(ws, "5")["type"] == "error"

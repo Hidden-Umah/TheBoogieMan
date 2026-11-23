@@ -14,4 +14,5 @@ export const hud = {
   heard: 0,
   spoken: 0,
   mode: 'normal' as Mode,
+  bg: true, // background video on/off (Ctrl+B)
 }
