@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { EyeState } from './Eye'
+import type { EyeState } from '../types'
 
 const LABEL: Record<EyeState, string> = {
   idle: 'STANDBY',

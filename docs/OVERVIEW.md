@@ -80,10 +80,11 @@ TheBoogieMan/
 ├── app/                      # The desktop app (Tauri)
 │   ├── src/                  # React + TypeScript UI (the face)
 │   │   ├── App.tsx           #   boot → HUD, wires everything to the brain
+│   │   ├── three/
+│   │   │   ├── Scene.tsx       # three.js scene: eye, gyroscope rings, voice ring, space, camera, bloom
+│   │   │   └── eyeShader.ts    # GLSL for the cyborg eyeball (iris, pupil, sclera panels)
 │   │   ├── components/
 │   │   │   ├── BootScreen.tsx  # "Welcome to the Boogeyman" + loading, waits for the brain
-│   │   │   ├── Starfield.tsx   # 3D warp starfield (canvas), speeds up while thinking
-│   │   │   ├── Eye.tsx         # cyborg eye: counter-rotating rings + voice ring
 │   │   │   ├── LogPanel.tsx    # streaming system log
 │   │   │   ├── InfoPanel.tsx   # result screen that swipes in and types out
 │   │   │   ├── CommandBar.tsx  # the >_ input
