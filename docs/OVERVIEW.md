@@ -83,6 +83,7 @@ TheBoogieMan/
 │   │   ├── three/
 │   │   │   ├── Scene.tsx       # three.js scene: eye, rings, voice ring, space, camera, bloom, devil palette
 │   │   │   ├── DataArcs.tsx    # fragmented radial data rings (wireframe cells + hot orange cells)
+│   │   │   ├── DotCore.tsx     # normal-mode core: 3D dot-matrix sphere that breathes / ripples / pulses
 │   │   │   └── eyeShader.ts    # GLSL for the cyborg eyeball (iris, pupil / devil slit, sclera panels)
 │   │   ├── components/
 │   │   │   ├── BootScreen.tsx  # "Welcome to the Boogeyman" + loading, waits for the brain
@@ -134,8 +135,8 @@ If the pill stays red, check the terminal. The brain's output is printed there w
 
 ## Modes
 
-- **Normal**: dot-matrix cards, the 3D eye and data rings. White with an orange-red accent.
-- **Devil mode** (`Ctrl+D` to toggle): for serious work. The visor slams shut, armour frames the screen, the pupil turns into a slit, everything goes blood red, and a targeting reticle follows the cursor.
+- **Normal**: dot-matrix cards, a 3D dot-matrix core and data rings. White with an orange-red accent. No eye.
+- **Devil mode** (`Ctrl+D` to toggle): for serious work. The visor slams shut, armour frames the screen, the core collapses and the eye opens with a slit pupil, everything goes blood red, and a targeting reticle follows the cursor.
 
 ## Safety rules we're building in from day one
 
