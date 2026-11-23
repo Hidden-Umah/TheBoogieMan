@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { EyeState, Mode } from '../types'
 import DataArcs from './DataArcs'
+import DotCore from './DotCore'
 import { eyeFragment, eyeVertex } from './eyeShader'
 
 /** Palettes. Normal = warm orange-red accent on white; Devil = blood red everything. */
@@ -110,10 +111,14 @@ function Eyeball({ live }: { live: React.RefObject<Live> }) {
     const k = 1 - Math.exp(-dt * (6 + l.devil * 8))
     group.current.rotation.y += (mouse.x * 0.55 + sx - group.current.rotation.y) * k
     group.current.rotation.x += (-mouse.y * 0.4 + sy - group.current.rotation.x) * k
+    // The eye only exists in devil mode: it opens as the core collapses.
+    const s = Math.max(0.0001, l.devil)
+    group.current.scale.setScalar(s)
+    group.current.visible = s > 0.01
   })
 
   return (
-    <group ref={group}>
+    <group ref={group} scale={0.0001} visible={false}>
       <mesh material={mat}>
         <sphereGeometry args={[1, 128, 128]} />
       </mesh>
@@ -306,6 +311,7 @@ function Rig({ state, mode, booted }: { state: EyeState; mode: Mode; booted: boo
     <>
       <CameraRig booted={booted} />
       <Space live={live} />
+      <DotCore live={live} mouse={mouse} />
       <Eyeball live={live} />
       <Rings live={live} />
       <VoiceRing live={live} />
