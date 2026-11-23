@@ -10,6 +10,15 @@ from elevenlabs import ElevenLabs
 from reply import fallback
 from voice import VoiceLoop
 
+
+def tmp_memory():
+    import tempfile
+    from pathlib import Path
+
+    from memory import Memory
+
+    return Memory(Path(tempfile.mkdtemp()) / "memory.json")
+
 rng = np.random.default_rng(0)
 
 
@@ -144,7 +153,9 @@ def test_groq_reply_and_errors():
             return httpx.Response(429, json={"error": "rate"})
         return httpx.Response(200, json={"choices": [{"message": {"content": " Hey, boss. "}}]})
 
-    r = Replier("auto", None, groq_key="gsk_test", http=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    r = Replier(
+        "auto", None, groq_key="gsk_test", http=httpx.AsyncClient(transport=httpx.MockTransport(handler)), memory=tmp_memory()
+    )
     assert r.provider == "groq" and r.model == "openai/gpt-oss-120b"
     assert asyncio.run(r.reply("hello")) == "Hey, boss."
     req = calls[0]
@@ -164,3 +175,48 @@ def test_provider_resolution():
     assert resolve_provider("auto", "a", "g", None) == "anthropic"
     assert resolve_provider("auto", None, "g", None) == "groq"
     assert resolve_provider("groq", None, None, None) == "none"
+
+
+
+def test_tool_loop_remembers_and_persists():
+    import json
+
+    from memory import Memory
+    from reply import Replier
+
+    mem = tmp_memory()
+    pushed = []
+
+    async def on_memory():
+        pushed.append(len(mem.facts))
+
+    def handler(request: httpx.Request):
+        body = json.loads(request.content)
+        assert any(t["function"]["name"] == "remember" for t in body["tools"])
+        if body["messages"][-1]["role"] == "user":
+            # First round: the model decides to save a fact.
+            call = {"id": "c1", "type": "function", "function": {"name": "remember", "arguments": json.dumps({"fact": "The boss loves jollof."})}}
+            return httpx.Response(200, json={"choices": [{"message": {"content": "", "tool_calls": [call]}}]})
+        assert body["messages"][-1] == {"role": "tool", "tool_call_id": "c1", "content": body["messages"][-1]["content"]}
+        return httpx.Response(200, json={"choices": [{"message": {"content": "Noted, boss."}}]})
+
+    r = Replier("groq", None, groq_key="k", http=httpx.AsyncClient(transport=httpx.MockTransport(handler)), memory=mem, on_memory=on_memory)
+    assert asyncio.run(r.reply("Remember I love jollof")) == "Noted, boss."
+    assert [f["text"] for f in mem.facts] == ["The boss loves jollof."]
+    assert pushed == [1]
+    # Survives a restart, and lands in the next system prompt.
+    again = Memory(mem.path)
+    assert again.facts[0]["text"] == "The boss loves jollof." and again.history[-1]["content"] == "Noted, boss."
+    r2 = Replier("groq", None, groq_key="k", memory=again)
+    assert "The boss loves jollof." in r2.system_prompt() and "Ghanaian Pidgin" in r2.system_prompt()
+    assert again.forget("jollof") and not Memory(mem.path).facts
+
+
+def test_spectrum_finds_the_tone():
+    from audio import spectrum
+
+    t = np.arange(1024) / 24000
+    bands = spectrum((np.sin(2 * np.pi * 1000 * t) * 12000).astype(np.int16), 24000)
+    assert len(bands) == 24 and max(bands) > 0.6
+    peak = bands.index(max(bands))
+    assert bands[0] < 0.3 and 8 < peak < 20  # 1 kHz sits in the middle of an 80 Hz..8 kHz log scale

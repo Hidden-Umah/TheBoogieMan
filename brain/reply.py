@@ -6,28 +6,65 @@ Pluggable LLM provider:
   - openai:    any OpenAI-compatible endpoint (LLM_BASE_URL + LLM_API_KEY + LLM_MODEL),
                e.g. Gemini or OpenRouter
 With no key at all he falls back to a few built-in lines.
-Phase 1 (#2) grows this into the full agent loop with tools.
+
+Personality comes from persona.md (+ optional boss.md); long-term memory from memory.py.
+The model can call tools (remember / forget) in a short loop before answering.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import random
+from collections.abc import Awaitable, Callable
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 import httpx
 
+from memory import Memory
+
 log = logging.getLogger("brain.reply")
 
-SYSTEM = """You are the Boogeyman: the boss's personal AI, living on his Linux desktop.
-You speak out loud, so:
-- Reply in 1 to 3 short, natural spoken sentences. No markdown, lists, emojis or URLs.
-- Call him "boss" now and then, not every time.
-- Calm, sharp, a little dark and witty. Never cheesy.
-- If you can't do something yet (search the web, control the computer), say so plainly in one line."""
-
+HERE = Path(__file__).parent
 FALLBACK_GREETINGS = ["Hello, boss.", "I'm here, boss.", "Hey, boss. I'm listening."]
-
 GROQ_URL = "https://api.groq.com/openai/v1"
+MAX_TOOL_ROUNDS = 4
+
+DEFAULT_MODEL = {
+    "anthropic": "claude-haiku-5-5",
+    "groq": "openai/gpt-oss-120b",
+}
+
+TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "remember",
+        "description": "Save one short, durable fact about the boss to long-term memory "
+        "(preferences, people, projects, goals, routines). Third person, e.g. 'The boss drinks his coffee black.'",
+        "parameters": {
+            "type": "object",
+            "properties": {"fact": {"type": "string", "description": "The fact to remember, one sentence."}},
+            "required": ["fact"],
+        },
+    },
+    {
+        "name": "forget",
+        "description": "Remove facts from long-term memory that contain the given words (or match the fact id).",
+        "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string", "description": "Words that identify the fact(s) to forget."}},
+            "required": ["query"],
+        },
+    },
+]
+
+
+def load_text(name: str) -> str:
+    try:
+        return (HERE / name).read_text().strip()
+    except OSError:
+        return ""
 
 
 class Replier:
@@ -40,9 +77,12 @@ class Replier:
         openai_key: str | None = None,
         openai_base: str | None = None,
         http: httpx.AsyncClient | None = None,
+        memory: Memory | None = None,
+        on_memory: Callable[[], Awaitable[None]] | None = None,
     ):
-        self.history: list[dict[str, str]] = []
-        self.http = http or httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0))
+        self.memory = memory or Memory()
+        self.on_memory = on_memory
+        self.http = http or httpx.AsyncClient(timeout=httpx.Timeout(40.0, connect=10.0))
         self.provider = resolve_provider(provider, anthropic_key, groq_key, openai_key)
         self.model = model or DEFAULT_MODEL.get(self.provider, "")
         self.key = {"anthropic": anthropic_key, "groq": groq_key, "openai": openai_key}.get(self.provider)
@@ -61,15 +101,30 @@ class Replier:
     def label(self) -> str:
         return f"{self.provider}:{self.model}" if self.online else "built-in"
 
+    @property
+    def history(self) -> list[dict[str, str]]:
+        return self.memory.history
+
+    def system_prompt(self) -> str:
+        parts = [load_text("persona.md") or "You are the Boogeyman, the boss's personal AI. Speak briefly."]
+        boss = load_text("boss.md")
+        if boss:
+            parts.append("## The boss (his own words)\n" + boss)
+        facts = self.memory.facts
+        parts.append(
+            "## What you know about the boss\n"
+            + ("\n".join(f"- {f['text']} (id {f['id']})" for f in facts) if facts else "- Nothing yet.")
+        )
+        local = datetime.now().astimezone()
+        parts.append(f"## Now\n{local.strftime('%A %d %B %Y, %H:%M')} ({local.tzname()})")
+        return "\n\n".join(parts)
+
     async def reply(self, text: str) -> str:
         if not self.online:
             return fallback(text)
-        self.history.append({"role": "user", "content": text})
-        self.history = self.history[-20:]
         try:
-            out = await (self._anthropic() if self.anthropic else self._openai_compatible())
+            out = await (self._anthropic(text) if self.anthropic else self._openai_compatible(text))
         except httpx.HTTPStatusError as e:
-            self.history.pop()
             code = e.response.status_code
             log.warning("%s error %s: %s", self.provider, code, e.response.text[:300])
             if code in (401, 403):
@@ -78,41 +133,87 @@ class Replier:
                 return "I've hit my free limit for now, boss. Give me a minute."
             return f"My brain returned an error, {code}. Try again in a moment."
         except httpx.HTTPError as e:
-            self.history.pop()
             log.warning("%s unreachable: %s", self.provider, e)
             return "I can't reach my brain right now, boss. Check the internet."
-        out = out.strip() or "I'm here, boss."
-        self.history.append({"role": "assistant", "content": out})
+        out = out.strip() or "Done, boss."
+        self.memory.add_turn(text, out)
         return out
 
-    async def _anthropic(self) -> str:
-        msg = await self.anthropic.messages.create(  # type: ignore[union-attr]
-            model=self.model, max_tokens=300, system=SYSTEM, messages=self.history
-        )
-        return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+    # ── tools ──
+    async def run_tool(self, name: str, args: dict[str, Any]) -> str:
+        try:
+            if name == "remember":
+                fact = self.memory.remember(str(args.get("fact", "")))
+                result = f"Saved (id {fact['id']})."
+            elif name == "forget":
+                gone = self.memory.forget(str(args.get("query", "")))
+                result = f"Forgot {len(gone)} fact(s)." if gone else "No matching facts."
+            else:
+                return f"Unknown tool {name}."
+        except ValueError as e:
+            return f"Error: {e}"
+        log.info("tool %s(%s) -> %s", name, args, result)
+        if self.on_memory:
+            await self.on_memory()
+        return result
 
-    async def _openai_compatible(self) -> str:
-        body: dict = {
-            "model": self.model,
-            "messages": [{"role": "system", "content": SYSTEM}, *self.history],
-            "max_tokens": 400,
-            "temperature": 0.7,
-        }
-        if "gpt-oss" in self.model:
-            body["reasoning_effort"] = "low"  # keep voice replies snappy
-        r = await self.http.post(
-            f"{self.base}/chat/completions",
-            headers={"Authorization": f"Bearer {self.key}"},
-            json=body,
-        )
-        r.raise_for_status()
-        return str(r.json()["choices"][0]["message"].get("content") or "")
+    # ── OpenAI-compatible (Groq, Gemini, OpenRouter...) ──
+    async def _openai_compatible(self, text: str) -> str:
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": self.system_prompt()},
+            *self.history,
+            {"role": "user", "content": text},
+        ]
+        tools = [{"type": "function", "function": t} for t in TOOLS]
+        for _ in range(MAX_TOOL_ROUNDS):
+            body: dict[str, Any] = {
+                "model": self.model,
+                "messages": messages,
+                "max_tokens": 700,
+                "temperature": 0.7,
+                "tools": tools,
+                "tool_choice": "auto",
+            }
+            if "gpt-oss" in self.model:
+                body["reasoning_effort"] = "low"  # keep voice replies snappy
+            r = await self.http.post(
+                f"{self.base}/chat/completions", headers={"Authorization": f"Bearer {self.key}"}, json=body
+            )
+            r.raise_for_status()
+            msg = r.json()["choices"][0]["message"]
+            calls = msg.get("tool_calls") or []
+            if not calls:
+                return str(msg.get("content") or "")
+            messages.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
+            for call in calls:
+                fn = call.get("function", {})
+                try:
+                    args = json.loads(fn.get("arguments") or "{}")
+                except json.JSONDecodeError:
+                    args = {}
+                result = await self.run_tool(fn.get("name", ""), args)
+                messages.append({"role": "tool", "tool_call_id": call.get("id", ""), "content": result})
+        return "Done, boss."
 
-
-DEFAULT_MODEL = {
-    "anthropic": "claude-haiku-5-5",
-    "groq": "openai/gpt-oss-120b",
-}
+    # ── Anthropic ──
+    async def _anthropic(self, text: str) -> str:
+        messages: list[dict[str, Any]] = [*self.history, {"role": "user", "content": text}]
+        tools = [{"name": t["name"], "description": t["description"], "input_schema": t["parameters"]} for t in TOOLS]
+        for _ in range(MAX_TOOL_ROUNDS):
+            msg = await self.anthropic.messages.create(  # type: ignore[union-attr]
+                model=self.model, max_tokens=700, system=self.system_prompt(), messages=messages, tools=tools
+            )
+            uses = [b for b in msg.content if getattr(b, "type", "") == "tool_use"]
+            if not uses:
+                return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+            messages.append({"role": "assistant", "content": [b.model_dump() for b in msg.content]})
+            results = []
+            for u in uses:
+                results.append(
+                    {"type": "tool_result", "tool_use_id": u.id, "content": await self.run_tool(u.name, dict(u.input))}
+                )
+            messages.append({"role": "user", "content": results})
+        return "Done, boss."
 
 
 def resolve_provider(provider: str, anthropic_key: str | None, groq_key: str | None, openai_key: str | None) -> str:

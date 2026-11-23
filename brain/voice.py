@@ -6,6 +6,7 @@ tested without hardware or network.
 Events (pushed to the UI, no id):
   voice.state      {state: idle|listening|hearing|transcribing|thinking|speaking|muted|error, detail?}
   voice.level      {source: mic|voice, level: 0..1}
+  voice.spectrum   {source: mic|voice, bands: [24 x 0..1]}  (the voice pattern)
   voice.transcript {text}
   voice.reply      {text}
 """
@@ -19,7 +20,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from audio import Segmenter, rms, to_wav
+from audio import MIC_RATE, Segmenter, rms, spectrum, to_wav
 
 log = logging.getLogger("brain.voice")
 
@@ -51,7 +52,9 @@ class VoiceLoop:
         transcribe: Callable[[bytes], Awaitable[str]] | None,
         tts: Callable[[str], AsyncIterator[bytes]] | None,
         reply: Callable[[str], Awaitable[str]],
+        tts_rate: int = 24000,
     ):
+        self.tts_rate = tts_rate
         self.emit = emit
         self.mic = mic
         self.speaker = speaker
@@ -81,8 +84,9 @@ class VoiceLoop:
             if self.muted or self.busy.locked():
                 continue
             tick += 1
-            if tick % 2 == 0:  # ~16 mic level updates per second is plenty
+            if tick % 2 == 0:  # ~16 mic updates per second is plenty
                 await self.emit("voice.level", {"source": "mic", "level": boost(rms(frame))})
+                await self.emit("voice.spectrum", {"source": "mic", "bands": spectrum(frame, MIC_RATE)})
             was = self.seg.speaking
             utterance = self.seg.feed(frame)
             if self.seg.speaking and not was:
@@ -144,6 +148,7 @@ class VoiceLoop:
 
     async def play_block(self, pcm: np.ndarray) -> None:
         await self.emit("voice.level", {"source": "voice", "level": boost(rms(pcm))})
+        await self.emit("voice.spectrum", {"source": "voice", "bands": spectrum(pcm, self.tts_rate)})
         await asyncio.to_thread(self.speaker.write, pcm)  # type: ignore[union-attr]
 
     async def set_muted(self, muted: bool) -> None:

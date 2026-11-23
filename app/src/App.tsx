@@ -4,8 +4,9 @@ import Captions, { type VoiceState } from './components/Captions'
 import { AgentCard, SystemCard } from './components/Cards'
 import HudFrame from './components/HudFrame'
 import LogPanel, { type LogLevel, type LogLine } from './components/LogPanel'
+import { MemoryCard, ResponseCard, VoiceCards, type Exchange, type Fact } from './components/SideCards'
 import Visor from './components/Visor'
-import { setLevel } from './lib/audio'
+import { setLevel, setSpectrum } from './lib/audio'
 import { brainStatus, onBrainMessage, onBrainStatus, sendToBrain } from './lib/brain'
 import Scene from './three/Scene'
 import type { EyeState, Mode } from './types'
@@ -41,8 +42,12 @@ export default function App() {
   const [voice, setVoice] = useState<VoiceState>('idle')
   const [detail, setDetail] = useState<string | undefined>()
   const [muted, setMuted] = useState(false)
-  const [you, setYou] = useState('')
-  const [him, setHim] = useState('')
+  const [exchanges, setExchanges] = useState<Exchange[]>([])
+  const [facts, setFacts] = useState<Fact[]>([])
+  const [fresh, setFresh] = useState<string | null>(null)
+  const [spoken, setSpoken] = useState(0)
+  const factIds = useRef<Set<string>>(new Set())
+  const exId = useRef(0)
   const [mode, setMode] = useState<Mode>('normal')
   const [armedAt, setArmedAt] = useState(0)
   const [logs, setLogs] = useState<LogLine[]>([])
@@ -51,6 +56,19 @@ export default function App() {
   const mutedRef = useRef(false)
   const startedAt = useRef(Date.now())
   const logId = useRef(0)
+
+  // New facts flash in the memory card.
+  const applyMemory = useCallback((m: { facts?: Fact[] }) => {
+    const list = m.facts ?? []
+    const known = factIds.current
+    const added = list.find((f) => !known.has(f.id))
+    if (added && known.size > 0) {
+      setFresh(added.id)
+      window.setTimeout(() => setFresh((x) => (x === added.id ? null : x)), 6000)
+    }
+    factIds.current = new Set(list.map((f) => f.id))
+    setFacts(list)
+  }, [])
 
   const log = useCallback((level: LogLevel, text: string) => {
     setLogs((l) => [...l.slice(-(MAX_LOGS - 1)), { id: logId.current++, t: stamp(), level, text }])
@@ -76,6 +94,12 @@ export default function App() {
         case 'voice.level':
           setLevel(Number(p.level) || 0, p.source === 'mic' ? 'mic' : 'voice')
           break
+        case 'voice.spectrum':
+          if (Array.isArray(p.bands)) setSpectrum(p.bands as number[], p.source === 'mic' ? 'mic' : 'voice')
+          break
+        case 'memory.updated':
+          applyMemory(p as { facts?: Fact[] })
+          break
         case 'voice.state': {
           const s = String(p.state) as VoiceState
           setVoice(s in EYE_FOR ? s : 'idle')
@@ -84,13 +108,18 @@ export default function App() {
           break
         }
         case 'voice.transcript':
-          setYou(String(p.text))
-          setHim('')
+          setExchanges((xs) => [...xs.slice(-11), { id: exId.current++, you: String(p.text), him: '' }])
           setTurns((n) => n + 1)
           log('boss', String(p.text))
           break
         case 'voice.reply':
-          setHim(String(p.text))
+          setExchanges((xs) => {
+            const last = xs[xs.length - 1]
+            // Reply to a spoken turn fills it in; a greeting or typed reply gets its own entry.
+            if (last && !last.him) return [...xs.slice(0, -1), { ...last, him: String(p.text) }]
+            return [...xs.slice(-11), { id: exId.current++, you: '', him: String(p.text) }]
+          })
+          setSpoken((n) => n + 1)
           log('ai', String(p.text))
           break
       }
@@ -98,13 +127,14 @@ export default function App() {
     return () => {
       un.then((fn) => fn())
     }
-  }, [log])
+  }, [log, applyMemory])
 
   // Once the HUD is up, ask him to greet the boss, and learn what voice pieces are available.
   useEffect(() => {
     if (!booted || !connected) return
-    sendToBrain<{ spoken: boolean; capabilities: Capabilities }>('voice.greet')
+    sendToBrain<{ spoken: boolean; capabilities: Capabilities; memory?: { facts: Fact[] } }>('voice.greet')
       .then((r) => {
+        if (r.payload.memory) applyMemory(r.payload.memory)
         const caps = r.payload.capabilities
         if (!caps) return
         caps.notes?.forEach((n) => log('warn', n))
@@ -117,7 +147,7 @@ export default function App() {
         }
       })
       .catch((e) => log('err', String(e)))
-  }, [booted, connected, log])
+  }, [booted, connected, log, applyMemory])
 
   // Ctrl+D: devil mode. Ctrl+M: mute mic.
   useEffect(() => {
@@ -164,7 +194,14 @@ export default function App() {
             </>
           )}
           <Visor active={mode === 'devil'} armedAt={armedAt} />
-          <Captions you={you} him={him} state={connected ? voice : 'unavailable'} detail={connected ? detail : 'brain offline'} />
+          <VoiceCards heard={turns} spoken={spoken} />
+          <div className="wing wing-right">
+            <div className="wing-inner">
+              <ResponseCard exchanges={exchanges} thinking={voice === 'thinking' || voice === 'transcribing'} />
+              <MemoryCard facts={facts} fresh={fresh} />
+            </div>
+          </div>
+          <Captions you="" him="" state={connected ? voice : 'unavailable'} detail={connected ? detail : 'brain offline'} />
           <div className="keyhint">
             <kbd>CTRL</kbd>+<kbd>M</kbd> {muted ? 'UNMUTE' : 'MUTE'} &nbsp; <kbd>CTRL</kbd>+<kbd>D</kbd>{' '}
             {mode === 'devil' ? 'EXIT DEVIL MODE' : 'DEVIL MODE'}

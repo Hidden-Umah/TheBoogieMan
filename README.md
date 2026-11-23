@@ -60,6 +60,12 @@ cp brain/.env.example brain/.env
 
 `brain/.env` is gitignored, and keys never reach the frontend.
 
+## Make him yours
+
+- **Personality**: edit `brain/persona.md` (tone, languages, what he's good at). Changes apply on the next reply, no restart needed.
+- **Who you are**: copy `brain/boss.example.md` to `brain/boss.md` (gitignored) and write about yourself.
+- **Memory**: just talk. "Remember that I ..." saves a fact, "forget that ..." removes it, and he also saves important things on his own. It's stored in `~/.local/share/boogeyman/memory.json` together with your recent conversation, so it survives restarts. Delete that file to wipe his memory.
+
 ## Run
 
 ```bash
