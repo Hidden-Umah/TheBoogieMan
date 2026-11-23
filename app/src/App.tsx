@@ -25,6 +25,9 @@ const AMBIENT: [LogLevel, string][] = [
 
 const MAX_LOGS = 120
 
+// Cards are parked for now: only the centrepiece shows. Later they appear when the boss calls.
+const SHOW_CARDS = false
+
 function stamp() {
   const d = new Date()
   return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => n.toString().padStart(2, '0')).join(':')
@@ -139,12 +142,16 @@ export default function App() {
         <BootScreen connected={connected} onDone={() => setBooted(true)} />
       ) : (
         <div className="hud">
-          <HudFrame connected={connected} startedAt={startedAt.current} />
-          <div className="col-left">
-            <AgentCard state={eyeState} commands={commands} latency={latency} connected={connected} />
-            <SystemCard />
-            <LogPanel lines={logs} />
-          </div>
+          {SHOW_CARDS && (
+            <>
+              <HudFrame connected={connected} startedAt={startedAt.current} />
+              <div className="col-left">
+                <AgentCard state={eyeState} commands={commands} latency={latency} connected={connected} />
+                <SystemCard />
+                <LogPanel lines={logs} />
+              </div>
+            </>
+          )}
           <InfoPanel info={info} onClose={() => setInfo(null)} />
           <Visor active={mode === 'devil'} armedAt={armedAt} />
           <CommandBar disabled={!connected} busy={busy} devil={mode === 'devil'} onSubmit={command} />
