@@ -90,6 +90,9 @@ async def ui_action(action: str | None) -> str | None:
     if action in ("work", "normal"):
         await hub.emit("ui.mode", {"mode": action})
         return None
+    if action and action.startswith("devil:"):
+        await hub.emit("ui.devil", {"on": action == "devil:on"})
+        return None
     if action == "help":
         await hub.emit("ui.help", {"show": True})
         return None
@@ -140,6 +143,12 @@ async def tool_switch_screen(args: dict[str, Any]) -> str:
         return "Error: screen must be 'work' or 'normal'."
     await hub.emit("ui.mode", {"mode": screen})
     return f"Switched to the {screen} screen."
+
+
+async def tool_devil_mode(args: dict[str, Any]) -> str:
+    on = bool(args.get("on", True))
+    await hub.emit("ui.devil", {"on": on})
+    return "Devil mode is on: visor down, red, the eye is open." if on else "Devil mode is off."
 
 
 async def tool_set_background(args: dict[str, Any]) -> str:
@@ -195,6 +204,16 @@ replier.add_tool(
         },
     },
     tool_switch_screen,
+)
+replier.add_tool(
+    {
+        "name": "devil_mode",
+        "description": "Turn devil mode on or off. Devil mode is the serious, armed look: the helmet visor drops, "
+        "everything goes red and your eye opens. Use for 'devil mode', 'go devil', 'unleash', 'get serious', "
+        "and on=false for 'stand down', 'exit devil mode'.",
+        "parameters": {"type": "object", "properties": {"on": {"type": "boolean"}}, "required": ["on"]},
+    },
+    tool_devil_mode,
 )
 replier.add_tool(
     {

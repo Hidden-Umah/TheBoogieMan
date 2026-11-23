@@ -10,6 +10,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ['"Remember that …"', 'Saves a fact about you for every future chat.'],
       ['"Forget …"', 'Removes a saved fact.'],
       ['"Clear our conversation"', 'Wipes chat history (facts stay).'],
+      ['Talk over him', 'He stops and listens. "Pause" keeps him quiet, "continue" picks up.'],
     ],
   },
   {
@@ -26,6 +27,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ['"Change the background"', 'Next background video.'],
       ['"Sea background" / "Nebula"', 'Pick one by name.'],
       ['"Background off" / "on"', 'Plain dark or video.'],
+      ['"Devil mode" / "stand down"', 'Visor, red, the eye.'],
       ['"What can you do?"', 'Shows this card.'],
     ],
   },

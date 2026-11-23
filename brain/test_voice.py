@@ -457,3 +457,73 @@ def test_groq_all_limited_says_how_long():
     r = Replier("groq", None, groq_key="k", http=http, memory=Memory(Path(tempfile.mkdtemp()) / "m.json"))
     out = asyncio.run(r.reply("hi"))
     assert "2 minutes" in out
+
+
+def test_barge_in_pause_and_continue():
+    from voice import rest_of
+
+    events = []
+    heard = iter(["Tell me a long story.", "Pause.", "Continue."])
+    story = "Once upon a time there was a boss. " * 12
+
+    async def emit(t, p):
+        events.append((t, p))
+
+    async def transcribe(wav: bytes) -> str:
+        return next(heard)
+
+    async def tts(text: str):
+        for _ in range(int(len(text) / 4)):
+            yield (np.sin(np.arange(1024) * 0.05) * 2000).astype(np.int16).tobytes()
+
+    replies = []
+
+    async def reply(text: str) -> str:
+        replies.append(text)
+        return story
+
+    class PacedMic(FakeMic):
+        async def read(self):
+            if not self.frames:
+                await asyncio.sleep(3600)
+            await asyncio.sleep(0.004)
+            return self.frames.pop(0)
+
+    class SlowSpeaker(FakeSpeaker):
+        def write(self, pcm):
+            import time
+
+            time.sleep(0.008)
+            super().write(pcm)
+
+    frames = silence(40) + speech(30) + silence(40) + silence(25) + speech(25) + silence(40) + silence(30) + speech(30) + silence(40)
+    speaker = SlowSpeaker()
+    loop = VoiceLoop(emit, PacedMic(frames), speaker, transcribe, tts, reply)
+
+    async def go():
+        task = asyncio.create_task(loop.run())
+        for _ in range(1500):
+            await asyncio.sleep(0.01)
+            if sum(1 for t, _ in events if t == "voice.transcript") == 3 and not loop.busy.locked() and loop.tasks == set():
+                break
+        task.cancel()
+
+    asyncio.run(go())
+    said = [p["text"] for t, p in events if t == "voice.transcript"]
+    assert said == ["Tell me a long story.", "Pause.", "Continue."]
+    assert replies == ["Tell me a long story."]  # "pause" and "continue" never reach the LLM
+    texts = [p["text"] for t, p in events if t == "voice.reply"]
+    assert texts[0] == story and len(texts) == 2 and 0 < len(texts[1]) < len(story)  # resumed the rest
+    assert rest_of("One. Two, three.", 0.0) == "One. Two, three."
+    assert rest_of("Short.", 10) is None
+
+
+def test_devil_mode_commands():
+    from commands import Commands
+
+    c = Commands()
+    for on in ["Devil mode", "Switch to devil mode", "go devil", "unleash the beast", "activate devil mode please"]:
+        assert c.handle(on)[1] == "devil:on", on
+    for off in ["Exit devil mode", "turn off devil mode", "stand down", "devil mode off", "leave the devil mode"]:
+        assert c.handle(off)[1] == "devil:off", off
+    assert c.handle("exit work mode")[1] == "normal"

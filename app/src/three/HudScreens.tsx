@@ -124,7 +124,6 @@ function Bezel() {
 }
 
 const pal = () => PALETTES[hud.mode]
-const normalOnly = () => hud.mode === 'normal'
 const always = () => true
 
 export default function HudScreens() {
@@ -138,10 +137,10 @@ export default function HudScreens() {
       >
         <Head />
         <Bezel />
-        <Screen side="left" row={0} delay={200} visible={normalOnly} draw={(c, w, h) => drawVoice(c, w, h, pal(), 'mic')} />
-        <Screen side="left" row={1} delay={400} visible={normalOnly} draw={(c, w, h) => drawVoice(c, w, h, pal(), 'voice')} />
+        <Screen side="left" row={0} delay={200} visible={always} draw={(c, w, h) => drawVoice(c, w, h, pal(), 'mic')} />
+        <Screen side="left" row={1} delay={400} visible={always} draw={(c, w, h) => drawVoice(c, w, h, pal(), 'voice')} />
         <Screen side="right" row={0} delay={300} visible={always} draw={(c, w, h) => drawResponse(c, w, h, pal())} />
-        <Screen side="right" row={1} delay={500} visible={normalOnly} draw={(c, w, h) => drawMemory(c, w, h, pal())} />
+        <Screen side="right" row={1} delay={500} visible={always} draw={(c, w, h) => drawMemory(c, w, h, pal())} />
       </Canvas>
     </div>
   )
