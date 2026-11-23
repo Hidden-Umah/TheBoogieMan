@@ -92,6 +92,9 @@ TheBoogieMan/
 │   │   │   ├── LogPanel.tsx    # 03 System log card
 │   │   │   ├── InfoPanel.tsx   # 04 result card that swipes in and types out
 │   │   │   ├── Visor.tsx       # Devil mode: helmet visor, armour, contours, reticle, shutter
+│   │   │   ├── SideCards.tsx   # curved cards: 01 your voice, 02 his voice, 03 response, 04 memory
+│   │   │   ├── VoicePattern.tsx # live spectrum + loudness trace (canvas)
+│   │   │   ├── CurvedCard.tsx  # bent frame for the side cards
 │   │   │   ├── CommandBar.tsx  # the >_ input
 │   │   │   └── HudFrame.tsx    # corners, clock, link/latency/state
 │   │   └── lib/brain.ts      #   typed functions to talk to Rust
@@ -107,7 +110,9 @@ TheBoogieMan/
 │   ├── voice.py              #   voice loop: listen → transcribe → reply → speak
 │   ├── audio.py              #   mic capture, speech detection (VAD), playback
 │   ├── elevenlabs.py         #   ElevenLabs speech-to-text + streaming text-to-speech
-│   ├── reply.py              #   what he says: pluggable LLM (Groq / Claude / OpenAI-compatible)
+│   ├── reply.py              #   what he says: pluggable LLM + remember/forget tool loop
+│   ├── persona.md            #   his personality (edit me)
+│   ├── memory.py             #   long-term memory: facts + recent conversation on disk
 │   ├── config.py             #   settings from brain/.env
 │   ├── test_main.py          #   tests
 │   └── requirements*.txt
@@ -149,6 +154,14 @@ You talk; he answers. No text box.
 5. The **real audio level** is sent to the UI ~20 times a second, so the core pulses with his actual voice, and with yours while you talk.
 
 He doesn't listen while he talks, so he can't hear himself. Captions under the core show what you said and what he's saying.
+
+## Personality and memory
+
+- `brain/persona.md` sets who he is: calm, sharp, a little dark; Ghanaian Pidgin when you use it; strong with text (rewrite, translate, draft, roast).
+- `brain/boss.md` (optional, gitignored) is your own description of yourself.
+- **Memory** lives in `~/.local/share/boogeyman/memory.json`, outside the repo. The model has two tools, `remember` and `forget`, and calls them itself in a short loop before answering. Facts and the last 30 messages are fed back into every reply, so he knows you across restarts. New facts flash in the MEMORY card.
+
+This is prompt and context tuning, not model fine-tuning: instant, free, and editable.
 
 ## Modes
 

@@ -5,6 +5,9 @@ os.environ["BOOGEYMAN_VOICE"] = "0"  # no hardware or network in tests
 for k in ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "GROQ_API_KEY", "GROK_API_KEY", "LLM_API_KEY"):
     os.environ[k] = ""
 os.environ["LLM_PROVIDER"] = "auto"
+import tempfile  # noqa: E402
+
+os.environ["BOOGEYMAN_DATA"] = tempfile.mkdtemp()  # never touch the real memory
 
 from fastapi.testclient import TestClient  # noqa: E402
 

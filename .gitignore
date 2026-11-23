@@ -14,3 +14,6 @@ __pycache__/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# The Boogeyman: personal profile for the brain (never commit)
+brain/boss.md

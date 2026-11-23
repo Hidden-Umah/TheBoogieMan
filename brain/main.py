@@ -23,6 +23,7 @@ from typing import Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 import config
+from memory import Memory
 from reply import Replier
 from voice import VoiceLoop
 
@@ -57,6 +58,13 @@ class Hub:
 
 hub = Hub()
 settings = config.load()
+memory = Memory()
+
+
+async def push_memory() -> None:
+    await hub.emit("memory.updated", memory.snapshot())
+
+
 replier = Replier(
     settings.llm_provider,
     settings.model,
@@ -64,6 +72,8 @@ replier = Replier(
     groq_key=settings.groq_key,
     openai_key=settings.openai_key,
     openai_base=settings.openai_base,
+    memory=memory,
+    on_memory=push_memory,
 )
 voice = VoiceLoop(hub.emit, None, None, None, None, replier.reply)
 state: dict[str, Any] = {"greeted": False, "capabilities": {}}
@@ -154,12 +164,24 @@ async def handle(message: dict[str, Any]) -> dict[str, Any]:
         first = not state["greeted"]
         state["greeted"] = True
         if first:
-            spawn(voice.say("Welcome back, boss. I'm listening."))
-        return make_message(msg_id, "voice.ack", {"spoken": first, "capabilities": state["capabilities"]})
+            greeting = "Welcome back, boss. I'm listening."
+            await hub.emit("voice.reply", {"text": greeting})
+            spawn(voice.say(greeting))
+        return make_message(
+            msg_id, "voice.ack", {"spoken": first, "capabilities": state["capabilities"], "memory": memory.snapshot()}
+        )
 
     if msg_type == "voice.mute":
         await voice.set_muted(bool(payload.get("muted")))
         return make_message(msg_id, "voice.ack", {"muted": voice.muted})
+
+    if msg_type == "memory.get":
+        return make_message(msg_id, "memory.updated", memory.snapshot())
+
+    if msg_type == "memory.forget":
+        memory.forget(str(payload.get("id", "")))
+        await push_memory()
+        return make_message(msg_id, "memory.updated", memory.snapshot())
 
     if msg_type == "voice.status":
         return make_message(msg_id, "voice.ack", {"muted": voice.muted, "capabilities": state["capabilities"]})

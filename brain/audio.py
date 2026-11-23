@@ -27,6 +27,30 @@ def rms(pcm: np.ndarray) -> float:
     return float(np.sqrt(np.mean(x * x)))
 
 
+_BAND_CACHE: dict[tuple[int, int, int], np.ndarray] = {}
+
+
+def spectrum(pcm: np.ndarray, rate: int, bands: int = 24) -> list[float]:
+    """Log-spaced frequency bands (80 Hz .. 8 kHz), each 0..1. The 'voice pattern' the UI draws."""
+    n = pcm.size
+    if n < 64:
+        return [0.0] * bands
+    x = pcm.astype(np.float32) / 32768.0
+    mag = np.abs(np.fft.rfft(x * np.hanning(n))) / (n / 4)
+    key = (n, rate, bands)
+    edges = _BAND_CACHE.get(key)
+    if edges is None:
+        freqs = np.geomspace(80, min(8000, rate / 2 - 1), bands + 1)
+        edges = np.clip((freqs / (rate / 2) * (mag.size - 1)).astype(int), 0, mag.size - 1)
+        _BAND_CACHE[key] = edges
+    out = []
+    for i in range(bands):
+        a, b = edges[i], max(edges[i + 1], edges[i] + 1)
+        db = 20 * np.log10(np.max(mag[a:b]) + 1e-9)
+        out.append(float(np.clip((db + 70) / 60, 0, 1)))  # -70 dB .. -10 dB -> 0..1
+    return [round(v, 3) for v in out]
+
+
 def to_wav(pcm: np.ndarray, rate: int = MIC_RATE) -> bytes:
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:

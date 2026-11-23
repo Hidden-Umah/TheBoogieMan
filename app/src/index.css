@@ -251,3 +251,59 @@ kbd { font-family: var(--mono); border: 1px solid var(--line-strong); border-rad
 .voice-chip.vs-hearing, .voice-chip.vs-speaking { color: var(--fg); }
 .voice-chip.vs-error, .voice-chip.vs-unavailable, .voice-chip.vs-muted { color: var(--accent); }
 .chip-detail { letter-spacing: 0.08em; text-transform: none; color: var(--muted); }
+
+/* ───────── Curved side cards ───────── */
+/* Each wing is a column of cards rotated in 3D so it bends toward you,
+   like the sides of a round screen. Outer edges come closer, inner edges recede. */
+.wing { position: absolute; top: 9%; bottom: 13%; width: min(340px, 25vw); perspective: 1100px; z-index: 4; pointer-events: none; transition: opacity 0.6s ease, transform 0.6s ease; }
+.wing-left { left: 2.2%; }
+.wing-right { right: 2.2%; }
+.wing-inner { height: 100%; display: flex; flex-direction: column; gap: 16px; transform-style: preserve-3d; }
+.wing-left .wing-inner { transform-origin: left center; transform: rotateY(24deg); }
+.wing-right .wing-inner { transform-origin: right center; transform: rotateY(-24deg); }
+
+.ccard { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 20px 18px 16px; pointer-events: auto; animation: ccardin 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.wing-left .ccard:nth-child(2), .wing-right .ccard:nth-child(2) { animation-delay: 0.15s; }
+@keyframes ccardin { from { opacity: 0; transform: translateZ(-120px); } }
+.ccard-frame { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.cf-fill { fill: var(--card); }
+.cf-line { fill: none; stroke: var(--card-edge); stroke-width: 1; }
+.cf-edge { fill: none; stroke: var(--line-strong); stroke-width: 1.2; }
+.ccard-head, .ccard-body { position: relative; }
+.ccard-head { display: flex; justify-content: space-between; align-items: center; font-size: 10px; letter-spacing: 0.16em; color: var(--dim); margin-bottom: 10px; }
+.ccard-head b { font-weight: 400; color: var(--muted); margin-right: 6px; }
+.ccard-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.live-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 9.5px; letter-spacing: 0.18em; color: var(--muted); }
+.live-tag.on { color: var(--accent); }
+
+.voice-pattern { flex: 1; min-height: 0; width: 100%; display: block; }
+.wing-foot { display: flex; justify-content: space-between; font-size: 9px; letter-spacing: 0.2em; color: var(--muted); padding-top: 8px; border-top: 1px solid var(--line); margin-top: 8px; }
+
+.resp-card { flex: 1.35; }
+.resp-body, .mem-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; mask-image: linear-gradient(to bottom, transparent, #000 18%); padding-top: 10px; }
+.resp-body::-webkit-scrollbar, .mem-body::-webkit-scrollbar { display: none; }
+.hint { color: var(--muted); font-size: 11px; line-height: 1.6; margin: 0; }
+.ex { margin-bottom: 14px; opacity: 0.45; transition: opacity 0.4s; }
+.ex.current { opacity: 1; }
+.ex-you { font-size: 10.5px; color: var(--muted); line-height: 1.5; }
+.ex-you:not(:empty)::before { content: 'YOU › '; color: var(--accent); letter-spacing: 0.14em; font-size: 9px; }
+.ex-him { font-size: 13.5px; line-height: 1.6; color: var(--fg); margin-top: 4px; white-space: pre-wrap; }
+.ex-dots { display: flex; gap: 5px; padding: 4px 0 10px; }
+.ex-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: dots 1s ease-in-out infinite; }
+.ex-dots i:nth-child(2) { animation-delay: 0.15s; }
+.ex-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes dots { 50% { opacity: 0.2; transform: translateY(-3px); } }
+
+.fact { display: flex; gap: 9px; align-items: baseline; font-size: 11.5px; line-height: 1.55; color: var(--dim); padding: 5px 0; border-bottom: 1px solid var(--line); }
+.fact .pip { flex: none; transform: translateY(-1px); }
+.fact.fresh { color: var(--fg); animation: factin 1.2s ease both; }
+@keyframes factin { 0% { opacity: 0; transform: translateX(14px); } 30% { opacity: 1; } 40%, 60% { background: rgba(255, 74, 28, 0.12); } 100% { transform: none; background: transparent; } }
+
+/* Status chip sits under the core now that text lives on the right. */
+.captions { bottom: 28px; }
+
+/* Devil mode: only the response stays, as intel. */
+.mode-devil .wing-left { opacity: 0; transform: translateX(-40px); }
+.mode-devil .wing-left .ccard { pointer-events: none; }
+.mode-devil .wing-right { top: 22%; bottom: 30%; right: 7%; }
+.mode-devil .wing-right .ccard:nth-child(2) { display: none; }
