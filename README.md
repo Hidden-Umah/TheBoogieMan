@@ -84,6 +84,8 @@ The window opens, Rust starts the Python brain, and after the boot screen he gre
 - "Shut down **now**" / "right now" / "immediately": no questions, he shuts down.
 - "Let's get to work": the core slides away and the workspace opens. "Back to the normal screen" / "exit work mode" / "go home" returns.
 - "What can you do?" / "show me the commands": opens the commands card.
+- "Devil mode" / "go devil" / "unleash": devil mode (curved screens, red, the eye). "Stand down" / "exit devil mode" ends it.
+- **Talk over him** and he stops mid-sentence to listen. "Pause" / "stop" / "wait" keeps him quiet; "continue" / "go on" picks up where he stopped. On loud speakers he might hear himself and cut out: use headphones, raise `BOOGEYMAN_BARGE_LEVEL` (e.g. `1.5`) in `brain/.env`, or set `BOOGEYMAN_BARGE_IN=0` to turn it off.
 - "Clear our conversation": wipes chat history (saved facts stay). Do this once if he ever insists he "can't" do something he can.
 - "Change / switch / next background", "sea background", "space background", "background off".
 - "Research ...", "look up ...", "search for ...": he researches the web live in the workspace. Asking naturally works too ("what's the latest news in Ghana?").

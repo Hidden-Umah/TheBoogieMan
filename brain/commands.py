@@ -74,6 +74,14 @@ BYE = ["Okay boss, take care.", "Alright boss. Take care.", "Shutting down. Take
 BYE_NOW = ["Shutting down. Take care, boss.", "Going dark now. Later, boss.", "Done. Take care, boss."]
 STAY = ["Alright, I'm staying.", "Good. I wasn't going anywhere.", "Cool, I'm still here, boss."]
 NOT_COMPUTER = "I can only shut myself down for now, boss. Powering off the computer comes later."
+DEVIL_OFF = re.compile(
+    r"\b((exit|leave|quit|stop|end|disable|turn\s*off|cancel|close|kill|drop)\s*(the\s*)?(devil|demon|beast)(\s*mode)?|"
+    r"(devil|demon|beast)\s*mode\s*off|stand\s*down|calm\s*down|no\s*more\s*devil)\b")
+DEVIL_ON = re.compile(
+    r"\b((devil|demon|beast)\s*mode|go\s*devil|unleash(\s*(the\s*)?(devil|beast|yourself))?|arm\s*(up|yourself)|"
+    r"wake\s*the\s*devil|show\s*(me\s*)?(your|the)\s*eye)\b")
+DEVIL_ON_LINES = ["Devil mode. Let's get serious, boss.", "Visor down. I'm watching everything, boss."]
+DEVIL_OFF_LINES = ["Standing down, boss.", "Devil's asleep. Back to normal."]
 WORK_LINES = ["Boss, what do you want to do?", "Workspace is up. What are we doing, boss?"]
 NORMAL_LINES = ["Back to base, boss.", "Done. I'm here when you need me."]
 BG_LINES = {
@@ -111,6 +119,12 @@ class Commands:
             if fresh and NO.search(t):
                 return random.choice(STAY), None
             # Anything else: drop the question and treat it as a normal message.
+
+        # Devil mode before anything else ("exit devil mode" is neither a shutdown nor a screen switch).
+        if short and DEVIL_OFF.search(t):
+            return random.choice(DEVIL_OFF_LINES), "devil:off"
+        if short and DEVIL_ON.search(t):
+            return random.choice(DEVIL_ON_LINES), "devil:on"
 
         # Screen switches first, so "exit work mode" never reads as "exit" (shutdown).
         if short and NORMAL.search(t):

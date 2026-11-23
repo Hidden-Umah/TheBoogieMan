@@ -123,6 +123,18 @@ export default function App() {
     }
   }, [log])
 
+  const setDevil = useCallback(
+    (on: boolean) => {
+      const next: Mode = on ? 'devil' : 'normal'
+      if (modeRef.current === next) return
+      modeRef.current = next
+      setMode(next)
+      if (on) setArmedAt(Date.now())
+      log(on ? 'err' : 'ok', on ? 'DEVIL MODE ENGAGED' : 'Devil mode disengaged')
+    },
+    [log],
+  )
+
   // Events the brain pushes: voice state, live audio level, captions.
   useEffect(() => {
     const un = onBrainMessage((msg) => {
@@ -140,7 +152,11 @@ export default function App() {
         case 'ui.mode':
           setHelp(false)
           setWork(p.mode === 'work')
+          if (p.mode === 'normal' && p.devil === false) setDevil(false)
           log('sys', p.mode === 'work' ? 'Workspace open' : 'Back to the core')
+          break
+        case 'ui.devil':
+          setDevil(p.on !== false)
           break
         case 'ui.help':
           setHelp(p.show !== false)
@@ -184,7 +200,7 @@ export default function App() {
     return () => {
       un.then((fn) => fn())
     }
-  }, [log, applyMemory, applyBackground])
+  }, [log, applyMemory, applyBackground, setDevil])
 
   // Once the HUD is up, ask him to greet the boss, and learn what voice pieces are available.
   useEffect(() => {
@@ -214,11 +230,7 @@ export default function App() {
       const k = e.key.toLowerCase()
       if (k === 'd') {
         e.preventDefault()
-        const next = modeRef.current === 'devil' ? 'normal' : 'devil'
-        modeRef.current = next
-        setMode(next)
-        if (next === 'devil') setArmedAt(Date.now())
-        log(next === 'devil' ? 'err' : 'ok', next === 'devil' ? 'DEVIL MODE ENGAGED' : 'Devil mode disengaged')
+        setDevil(modeRef.current !== 'devil')
       } else if (k === 'b') {
         e.preventDefault()
         // Ctrl+B: next background; Ctrl+Shift... reserved. Off after the last one, then back to the first.
@@ -238,7 +250,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [booted, log])
+  }, [booted, log, setDevil])
 
   useEffect(() => {
     hud.exchanges = exchanges

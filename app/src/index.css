@@ -276,10 +276,13 @@ kbd { font-family: var(--mono); border: 1px solid var(--line-strong); border-rad
 .work-on .hud-screens { transform: translateX(-115%); opacity: 0; }
 .work-on .captions { left: auto; right: 2.5%; transform: none; bottom: 14px; }
 
+:root { --holo: 58, 168, 255; --holo-line: 120, 190, 255; --holo-text: #e6f4ff; }
+/* Devil mode: the workspace and commands card turn blood red. */
+.mode-devil { --holo: 255, 34, 52; --holo-line: 255, 110, 110; --holo-text: #ffe6e6; }
 .work-shell {
-  /* Holo-blue workspace (like the reference frame). Change --accent here to recolour it. */
-  --accent: #3aa8ff; --accent-glow: rgba(58, 168, 255, 0.6);
-  --line: rgba(120, 190, 255, 0.16); --line-strong: rgba(120, 190, 255, 0.4);
+  /* Holo-blue workspace (like the reference frame); red in devil mode. Change --holo to recolour it. */
+  --accent: rgb(var(--holo)); --accent-glow: rgba(var(--holo), 0.6);
+  --line: rgba(var(--holo-line), 0.16); --line-strong: rgba(var(--holo-line), 0.4);
   position: absolute; inset: 2% 1.5% 5.5% 1.5%; z-index: 7; pointer-events: none;
   opacity: 0; transform: scaleY(0.04) scaleX(0.6); filter: brightness(2.5);
   transition: opacity 0.5s ease 0.3s, transform 0.8s cubic-bezier(0.2, 0.9, 0.2, 1) 0.3s, filter 0.9s ease 0.4s;
@@ -301,8 +304,8 @@ kbd { font-family: var(--mono); border: 1px solid var(--line-strong); border-rad
   opacity: 0; transform: translateX(60px); transition: opacity 0.7s ease 0.35s, transform 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.35s;
 }
 .work.on { opacity: 1; transform: none; }
-.work .wcard { background: rgba(4, 10, 22, 0.55); border-color: rgba(120, 190, 255, 0.18); }
-.work .w-ask-q { color: #e6f4ff; text-shadow: 0 0 14px rgba(58, 168, 255, 0.45); }
+.work .wcard { background: rgba(4, 10, 22, 0.55); border-color: rgba(var(--holo-line), 0.18); }
+.work .w-ask-q { color: var(--holo-text); text-shadow: 0 0 14px rgba(var(--holo), 0.45); }
 .work:not(.on) .wcard { animation: none; }
 
 .wcard {
@@ -318,7 +321,7 @@ kbd { font-family: var(--mono); border: 1px solid var(--line-strong); border-rad
   transition: left 1.1s cubic-bezier(0.65, 0, 0.25, 1), top 1.1s cubic-bezier(0.65, 0, 0.25, 1), width 1.1s cubic-bezier(0.65, 0, 0.25, 1),
     height 1.1s cubic-bezier(0.65, 0, 0.25, 1), transform 1.1s cubic-bezier(0.65, 0, 0.25, 1), opacity 0.8s ease, border-color 0.6s, box-shadow 0.6s;
   /* Glass catches more light toward the edges, like the side screens. */
-  background-image: linear-gradient(90deg, rgba(120, 190, 255, 0.05), transparent 30%, transparent 70%, rgba(120, 190, 255, 0.05));
+  background-image: linear-gradient(90deg, rgba(var(--holo-line), 0.05), transparent 30%, transparent 70%, rgba(var(--holo-line), 0.05));
 }
 /* Entry: cards come in from the right along the curve (keeps their bend). */
 .work > .wcard { animation-name: wCurveIn; }
@@ -328,20 +331,20 @@ kbd { font-family: var(--mono); border: 1px solid var(--line-strong); border-rad
 .w-step .ri { font-size: 13px; color: var(--muted); }
 .w-step.running .ri { color: var(--accent); display: inline-block; animation: spin 1s linear infinite; }
 .w-step.done .ri { color: var(--fg); }
-.w-step.running { border-color: rgba(120, 190, 255, 0.45); }
+.w-step.running { border-color: rgba(var(--holo-line), 0.45); }
 .w-step .rd { font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .step-bar { margin-top: auto; height: 2px; background: rgba(255, 255, 255, 0.08); border-radius: 2px; overflow: hidden; }
 .step-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.6s ease; }
 .w-step.running .step-bar i { width: 40%; animation: stepgo 1.4s ease-in-out infinite; }
 @keyframes stepgo { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 .w-step.done .step-bar i { width: 100%; background: var(--fg); opacity: 0.6; }
-.run-pct { font-family: var(--dot); font-weight: 800; font-size: 22px; color: #e6f4ff; line-height: 1; }
+.run-pct { font-family: var(--dot); font-weight: 800; font-size: 22px; color: var(--holo-text); line-height: 1; }
 .w-run .run-bar { margin: 8px 0 6px; }
 .w-run .run-foot .act { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
-.work > .wcard.focus { border-color: rgba(120, 190, 255, 0.5); box-shadow: 0 0 0 1px rgba(58, 168, 255, 0.15), 0 0 40px rgba(58, 168, 255, 0.18), 0 20px 50px rgba(0, 0, 0, 0.4); }
+.work > .wcard.focus { border-color: rgba(var(--holo-line), 0.5); box-shadow: 0 0 0 1px rgba(var(--holo), 0.15), 0 0 40px rgba(var(--holo), 0.18), 0 20px 50px rgba(0, 0, 0, 0.4); }
 .work > .wcard.focus::before {
   content: ''; position: absolute; left: 0; right: 0; height: 40%; top: -40%; pointer-events: none;
-  background: linear-gradient(180deg, transparent, rgba(58, 168, 255, 0.07), transparent); animation: scan 3.2s linear infinite;
+  background: linear-gradient(180deg, transparent, rgba(var(--holo), 0.07), transparent); animation: scan 3.2s linear infinite;
 }
 @keyframes scan { to { top: 100%; } }
 .work > .wcard.focus .wcard-head { color: var(--accent); }
@@ -357,7 +360,7 @@ kbd { font-family: var(--mono); border: 1px solid var(--line-strong); border-rad
 
 /* HEARING card: rises in the middle while you talk, then flies up into the header. */
 .work > .w-input {
-  z-index: 3; border-color: rgba(120, 190, 255, 0.45);
+  z-index: 3; border-color: rgba(var(--holo-line), 0.45);
   transition: left 1s cubic-bezier(0.65, 0, 0.25, 1), top 1s cubic-bezier(0.65, 0, 0.25, 1), width 1s cubic-bezier(0.65, 0, 0.25, 1),
     height 1s cubic-bezier(0.65, 0, 0.25, 1), opacity 0.7s ease 0.3s, transform 1s cubic-bezier(0.65, 0, 0.25, 1);
   animation: inputIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -366,26 +369,26 @@ kbd { font-family: var(--mono); border: 1px solid var(--line-strong); border-rad
 .work > .w-input .wcard-head b { color: var(--accent); animation: wfdot 1s ease-in-out infinite; }
 .livebars { flex: 1; min-height: 0; display: flex; align-items: center; gap: 3px; padding: 6px 0; }
 .livebars i { flex: 1; height: 100%; border-radius: 2px; background: linear-gradient(180deg, transparent, var(--accent), transparent); transform-origin: center; transform: scaleY(0.06); transition: transform 0.08s linear; opacity: 0.85; }
-.input-text { font-family: var(--dot); font-weight: 800; font-size: clamp(16px, 1.5vw, 24px); color: #e6f4ff; line-height: 1.25; letter-spacing: 0.03em; min-height: 1.3em; text-shadow: 0 0 14px rgba(58, 168, 255, 0.4); }
+.input-text { font-family: var(--dot); font-weight: 800; font-size: clamp(16px, 1.5vw, 24px); color: var(--holo-text); line-height: 1.25; letter-spacing: 0.03em; min-height: 1.3em; text-shadow: 0 0 14px rgba(var(--holo), 0.4); }
 .work > .w-input.in-live .input-text { color: var(--muted); }
 
 /* Commands card */
 .cmds { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); backdrop-filter: blur(3px); animation: fade 0.4s ease both; }
 @keyframes fade { from { opacity: 0; } }
 .cmds-card { width: 82vw; max-height: 86vh; animation: inputIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.cmds-card header { width: min(520px, 60vw); margin: 0 auto 18px; padding: 10px 16px; border-radius: 999px; background: rgba(4, 10, 22, 0.72); border: 1px solid rgba(120, 190, 255, 0.3); backdrop-filter: blur(18px); display: flex; justify-content: space-between; align-items: center; font-size: 11px; letter-spacing: 0.22em; color: #3aa8ff; margin-bottom: 14px; }
+.cmds-card header { width: min(520px, 60vw); margin: 0 auto 18px; padding: 10px 16px; border-radius: 999px; background: rgba(4, 10, 22, 0.72); border: 1px solid rgba(var(--holo-line), 0.3); backdrop-filter: blur(18px); display: flex; justify-content: space-between; align-items: center; font-size: 11px; letter-spacing: 0.22em; color: rgb(var(--holo)); margin-bottom: 14px; }
 .cmds-card header b { font-weight: 400; margin-right: 6px; }
-.cmds-card header button { background: none; border: 1px solid rgba(120, 190, 255, 0.3); color: var(--dim); font: inherit; font-size: 10px; letter-spacing: 0.18em; padding: 4px 10px; border-radius: 999px; cursor: pointer; }
+.cmds-card header button { background: none; border: 1px solid rgba(var(--holo-line), 0.3); color: var(--dim); font: inherit; font-size: 10px; letter-spacing: 0.18em; padding: 4px 10px; border-radius: 999px; cursor: pointer; }
 .cmds-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.2vw; align-items: stretch; perspective: 1500px; perspective-origin: 50% 40%; transform-style: preserve-3d; }
 .cmds-group {
-  padding: 14px 16px 16px; border-radius: 14px; background: rgba(4, 10, 22, 0.72); border: 1px solid rgba(120, 190, 255, 0.28);
-  box-shadow: 0 0 40px rgba(58, 168, 255, 0.12), 0 30px 70px rgba(0, 0, 0, 0.5); backdrop-filter: blur(18px);
-  background-image: linear-gradient(90deg, rgba(120, 190, 255, 0.06), transparent 30%, transparent 70%, rgba(120, 190, 255, 0.06));
+  padding: 14px 16px 16px; border-radius: 14px; background: rgba(4, 10, 22, 0.72); border: 1px solid rgba(var(--holo-line), 0.28);
+  box-shadow: 0 0 40px rgba(var(--holo), 0.12), 0 30px 70px rgba(0, 0, 0, 0.5); backdrop-filter: blur(18px);
+  background-image: linear-gradient(90deg, rgba(var(--holo-line), 0.06), transparent 30%, transparent 70%, rgba(var(--holo-line), 0.06));
   animation: wCurveIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .cmds-group h4 { margin: 0 0 6px; font-family: var(--dot); font-weight: 800; font-size: 13px; letter-spacing: 0.2em; color: var(--muted); }
-.cmd { display: grid; gap: 2px; padding: 7px 0; border-bottom: 1px solid rgba(120, 190, 255, 0.1); }
-.cmd code { font-family: inherit; font-size: 13px; color: #e6f4ff; }
+.cmd { display: grid; gap: 2px; padding: 7px 0; border-bottom: 1px solid rgba(var(--holo-line), 0.1); }
+.cmd code { font-family: inherit; font-size: 13px; color: var(--holo-text); }
 .cmd span { font-size: 11.5px; color: var(--dim); line-height: 1.4; }
 @keyframes wIn { from { opacity: 0; transform: translateX(160px); } }
 .wcard::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0.6; }

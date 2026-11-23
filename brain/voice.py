@@ -9,12 +9,19 @@ Events (pushed to the UI, no id):
   voice.spectrum   {source: mic|voice, bands: [24 x 0..1]}  (the voice pattern)
   voice.transcript {text}
   voice.reply      {text}
+
+Barge-in: while he speaks the mic stays open. If you talk over him (louder than the echo of
+his own voice, for ~1/4 s) he stops mid-sentence and listens. "Pause" / "stop" / "wait" just
+keeps him quiet; "continue" / "go on" picks up roughly where he stopped.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import re
+from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Protocol
 
@@ -27,6 +34,14 @@ log = logging.getLogger("brain.voice")
 Emit = Callable[[str, dict[str, Any]], Awaitable[None]]
 
 CHUNK = 1024  # playback block (~43 ms at 24 kHz): one level update each
+BARGE_IN = os.environ.get("BOOGEYMAN_BARGE_IN", "1").lower() not in ("0", "off", "false", "no")
+# Higher = you must talk louder to interrupt him. Raise it if he cuts himself off on loud speakers.
+BARGE_SENSITIVITY = float(os.environ.get("BOOGEYMAN_BARGE_LEVEL", "1.0"))
+BARGE_FRAMES = 8  # ~240 ms of you talking over him
+CHARS_PER_SEC = 14.0  # rough speaking rate, to find where he stopped
+
+PAUSE = re.compile(r"^\W*(pause|stop|wait|hold\s*on|hold\s*up|shh+|quiet|be\s*quiet|shut\s*up|one\s*sec(ond)?|enough|ok(ay)?\s*stop)\b", re.I)
+CONTINUE = re.compile(r"\b(continue|go\s*on|carry\s*on|keep\s*going|resume|as\s*you\s*were\s*saying|where\s*were\s*we|finish\s*(what\s*you\s*were\s*saying|that))\b", re.I)
 
 
 class MicLike(Protocol):
@@ -66,6 +81,17 @@ class VoiceLoop:
         self.muted = False
         self.busy = asyncio.Lock()
         self.seg = Segmenter()
+        # Barge-in
+        self.barge_in = BARGE_IN
+        self.speaking = False
+        self.barged = False  # you interrupted; capturing what you say
+        self.interrupt = asyncio.Event()
+        self.recent: deque[np.ndarray] = deque(maxlen=14)  # ~400 ms of mic while he talks
+        self.play_levels: deque[float] = deque(maxlen=5)  # what he just played (echo reference)
+        self.coupling = 0.6  # learned: how loud his own voice comes back through the mic
+        self.barge_n = 0
+        self.unsaid: str | None = None  # the rest of a reply you cut off
+        self.tasks: set[asyncio.Task] = set()
 
     @property
     def can_listen(self) -> bool:
@@ -75,7 +101,7 @@ class VoiceLoop:
         await self.emit("voice.state", {"state": state, **extra})
 
     async def run(self) -> None:
-        """Listen forever. Utterances are handled one at a time; the mic is ignored meanwhile."""
+        """Listen forever. While he talks the mic watches for you interrupting; otherwise it's ignored while busy."""
         if not self.can_listen:
             await self.state("idle", detail="mic or speech-to-text unavailable")
             return
@@ -83,7 +109,11 @@ class VoiceLoop:
         tick = 0
         while True:
             frame = await self.mic.read()  # type: ignore[union-attr]
-            if self.muted or self.busy.locked():
+            if self.muted:
+                continue
+            if self.busy.locked() and not self.barged:
+                if self.speaking and self.barge_in:
+                    await self.watch_barge(frame)
                 continue
             tick += 1
             if tick % 2 == 0:  # ~16 mic updates per second is plenty
@@ -94,9 +124,39 @@ class VoiceLoop:
             if self.seg.speaking and not was:
                 await self.state("hearing")
             if utterance is not None:
-                await self.handle_utterance(utterance)
+                self.barged = False
+                task = asyncio.create_task(self.handle_utterance(utterance))
+                self.tasks.add(task)
+                task.add_done_callback(self.tasks.discard)
+                await asyncio.sleep(0)  # let the turn take the lock before the next frame
             elif was and not self.seg.speaking:
-                await self.state("listening")  # too short, discarded
+                self.barged = False
+                if not self.busy.locked():
+                    await self.state("listening")  # too short, discarded
+
+    async def watch_barge(self, frame: np.ndarray) -> None:
+        """While he speaks: is that you talking over him, or just his own voice coming back?"""
+        self.recent.append(frame)
+        level = rms(frame)
+        play = max(self.play_levels, default=0.0)
+        gate = max(self.seg.threshold * 4.0, self.coupling * play * 2.5, 0.02) * BARGE_SENSITIVITY
+        if level > gate:
+            self.barge_n += 1
+        else:
+            self.barge_n = 0
+            if play > 0.01:  # learn the echo from frames that are clearly just him
+                self.coupling = min(3.0, self.coupling * 0.97 + (level / play) * 0.03)
+        if self.barge_n >= BARGE_FRAMES:
+            log.info("barge-in: you talked over him (mic %.3f > %.3f)", level, gate)
+            self.barge_n = 0
+            self.barged = True
+            self.interrupt.set()
+            # Start capturing with what you've already said.
+            self.seg.reset()
+            self.seg.speaking = True
+            self.seg.frames = list(self.recent)
+            self.recent.clear()
+            await self.state("hearing")
 
     async def handle_utterance(self, pcm: np.ndarray) -> None:
         async with self.busy:
@@ -107,16 +167,26 @@ class VoiceLoop:
                     return  # noise, not words
                 log.info("heard: %r", text)
                 await self.emit("voice.transcript", {"text": text})
+                if len(text.split()) <= 4 and PAUSE.search(text):
+                    log.info("paused")  # stay quiet; "continue" picks it up
+                    return
+                if self.unsaid and len(text.split()) <= 6 and CONTINUE.search(text):
+                    rest, self.unsaid = self.unsaid, None
+                    await self.emit("voice.reply", {"text": rest})
+                    await self.say(rest, locked=True)
+                    return
+                self.unsaid = None
                 await self.respond(text, locked=True)
             except Exception as e:  # keep listening whatever happens
                 log.exception("voice turn failed")
                 await self.state("error", detail=str(e)[:160])
                 await asyncio.sleep(1.5)
             finally:
-                self.seg.reset()
-                if self.mic:
-                    self.mic.drain()  # drop anything heard while we were busy (incl. our own voice)
-                await self.state("muted" if self.muted else "listening")
+                if not self.barged:  # (if you cut in, we're already capturing you)
+                    self.seg.reset()
+                    if self.mic:
+                        self.mic.drain()  # drop anything heard while we were busy (incl. our own voice)
+                    await self.state("muted" if self.muted else "listening")
 
     async def respond(self, text: str, locked: bool = False) -> str:
         """Think of a reply to `text`, then say it."""
@@ -127,7 +197,8 @@ class VoiceLoop:
         out = await self.reply(text)
         log.info("reply: %r", out[:160])
         await self.emit("voice.reply", {"text": out})
-        await self.say(out, locked=True)
+        if out.strip():
+            await self.say(out, locked=True)
         if self.after_turn:
             await self.after_turn()
         return out
@@ -139,20 +210,37 @@ class VoiceLoop:
         if not (self.tts and self.speaker):
             return
         await self.state("speaking")
+        self.interrupt.clear()
+        self.play_levels.clear()
+        self.recent.clear()
+        self.barge_n = 0
+        self.speaking = True
+        played = 0
         buf = b""
         try:
             async for chunk in self.tts(text):
                 buf += chunk
                 usable = len(buf) - (len(buf) % (CHUNK * 2))
                 for i in range(0, usable, CHUNK * 2):
-                    await self.play_block(np.frombuffer(buf[i : i + CHUNK * 2], dtype=np.int16))
+                    if self.interrupt.is_set():
+                        break
+                    block = np.frombuffer(buf[i : i + CHUNK * 2], dtype=np.int16)
+                    await self.play_block(block)
+                    played += len(block)
                 buf = buf[usable:]
-            if len(buf) >= 2:
+                if self.interrupt.is_set():
+                    break
+            if len(buf) >= 2 and not self.interrupt.is_set():
                 await self.play_block(np.frombuffer(buf[: len(buf) - len(buf) % 2], dtype=np.int16))
         finally:
+            self.speaking = False
             await self.emit("voice.level", {"source": "voice", "level": 0.0})
+        if self.interrupt.is_set():
+            self.unsaid = rest_of(text, played / self.tts_rate)
+            log.info("interrupted after %.1fs; %d chars unsaid", played / self.tts_rate, len(self.unsaid or ""))
 
     async def play_block(self, pcm: np.ndarray) -> None:
+        self.play_levels.append(rms(pcm))
         await self.emit("voice.level", {"source": "voice", "level": boost(rms(pcm))})
         await self.emit("voice.spectrum", {"source": "voice", "bands": spectrum(pcm, self.tts_rate)})
         await asyncio.to_thread(self.speaker.write, pcm)  # type: ignore[union-attr]
@@ -164,3 +252,15 @@ class VoiceLoop:
             self.mic.drain()
         if not self.busy.locked():
             await self.state("muted" if muted else "listening")
+
+
+def rest_of(text: str, seconds: float) -> str | None:
+    """Roughly what he hadn't said yet after `seconds`, starting at a sentence or clause boundary."""
+    cut = int(seconds * CHARS_PER_SEC)
+    if cut >= len(text) - 3:
+        return None
+    window = text[: cut + 1]
+    best = max(window.rfind(p) for p in (". ", "? ", "! ", ", ", "; ", ": "))
+    start = best + 2 if best > 0 else 0
+    rest = text[start:].strip()
+    return rest or None
