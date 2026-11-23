@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { channels } from '../lib/audio'
+import { bend } from '../lib/curve'
 import { onBrainMessage } from '../lib/brain'
 import WorkFrame, { WorkFrameDots } from './WorkFrame'
 
@@ -124,7 +126,7 @@ function Level({ label, value, max, suffix = '' }: { label: string; value: numbe
 }
 
 /** God's eye: radar of every source found; read ones burn orange. */
-function GodEye({ task }: { task: Task }) {
+function GodEye({ task, style, className = '' }: { task: Task; style?: React.CSSProperties; className?: string }) {
   const [jitter, setJitter] = useState(0)
   useEffect(() => {
     if (task.done) return
@@ -134,7 +136,7 @@ function GodEye({ task }: { task: Task }) {
   const m = task.metrics
   const intensity = task.done ? 100 : 55 + jitter * 40
   return (
-    <section className="wcard w-eye" style={{ animationDelay: '0.1s' }}>
+    <section className={`wcard w-eye ${className}`} style={style}>
       <header className="wcard-head">
         <span>
           <b>02</b> GOD'S EYE
@@ -202,8 +204,122 @@ function Elapsed({ task }: { task: Task }) {
   return <>{s.toFixed(1)}s</>
 }
 
-export default function WorkMode({ active, lastReply, listening }: { active: boolean; lastReply: string; listening: string }) {
+type Box = { l: number; t: number; w: number; h: number; o?: number }
+type Slot = 'stage' | 'side' | 'd0' | 'd1' | 'd2' | 'hidden' | 'dq' | 'deye' | 'dfind' | 'dsrc'
+const SLOTS: Record<Slot, Box> = {
+  stage: { l: 0, t: 20, w: 64, h: 60 },
+  side: { l: 65.5, t: 20, w: 34.5, h: 60 },
+  d0: { l: 0, t: 0, w: 22.6, h: 17 },
+  d1: { l: 23.4, t: 0, w: 22.6, h: 17 },
+  d2: { l: 46.8, t: 0, w: 22.6, h: 17 },
+  hidden: { l: 112, t: 20, w: 34, h: 60, o: 0 },
+  // Final dashboard
+  dq: { l: 0, t: 0, w: 69.2, h: 17 },
+  deye: { l: 0, t: 20, w: 32, h: 60 },
+  dfind: { l: 33, t: 20, w: 35.5, h: 60 },
+  dsrc: { l: 69.5, t: 20, w: 30.5, h: 60 },
+}
+type Phase = 'idle' | 'plan' | 'search' | 'read' | 'analyze' | 'done'
+const LAYOUT: Record<Exclude<Phase, 'idle'>, Record<'queries' | 'eye' | 'sources' | 'findings', Slot>> = {
+  plan: { queries: 'stage', eye: 'hidden', sources: 'hidden', findings: 'hidden' },
+  search: { queries: 'd0', eye: 'stage', sources: 'side', findings: 'hidden' },
+  read: { queries: 'd0', eye: 'side', sources: 'stage', findings: 'hidden' },
+  analyze: { queries: 'd0', eye: 'side', sources: 'd1', findings: 'stage' },
+  done: { queries: 'dq', eye: 'deye', sources: 'dsrc', findings: 'dfind' },
+}
+
+function phaseOf(task: Task | null): Phase {
+  if (!task) return 'idle'
+  if (task.done) return 'done'
+  const running = task.steps.find((s) => s.status === 'running')
+  if (running) return running.key as Phase
+  const next = task.steps.find((s) => s.status === 'pending')
+  return (next?.key as Phase) ?? 'analyze'
+}
+
+function box(l: number, t: number, w: number, h: number, o = 1): React.CSSProperties {
+  return { left: `${l}%`, top: `${t}%`, width: `${w}%`, height: `${h}%`, opacity: o, transform: bend(l, w) }
+}
+function place(slot: Slot): React.CSSProperties {
+  const b = SLOTS[slot]
+  return box(b.l, b.t, b.w, b.h, b.o ?? 1)
+}
+const docked = (slot: Slot) => slot === 'd0' || slot === 'd1' || slot === 'd2' || slot === 'dq'
+
+/** Live voice bars for the HEARING card, straight from the mic channel. */
+function LiveBars() {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    let raf = 0
+    const loop = () => {
+      const bars = ref.current?.children
+      const c = channels.mic
+      const live = performance.now() - c.at < 400
+      if (bars)
+        for (let i = 0; i < bars.length; i++) {
+          const v = live ? c.bands[i % c.bands.length] ?? 0 : 0.06 + 0.05 * Math.sin(performance.now() / 300 + i)
+          ;(bars[i] as HTMLElement).style.transform = `scaleY(${Math.max(0.06, v)})`
+        }
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [])
+  return (
+    <div className="livebars" ref={ref}>
+      {Array.from({ length: 48 }, (_, i) => (
+        <i key={i} />
+      ))}
+    </div>
+  )
+}
+
+type InputPhase = 'off' | 'live' | 'text' | 'fly'
+
+export default function WorkMode({
+  active,
+  lastReply,
+  listening,
+  voice,
+  heard,
+}: {
+  active: boolean
+  lastReply: string
+  listening: string
+  voice: string
+  heard: { id: number; text: string } | null
+}) {
   const task = useTask()
+  const phase = phaseOf(task)
+  const layout = phase === 'idle' ? null : LAYOUT[phase]
+
+  // The HEARING card: appears while he hears you, shows your words, then flies up into the header.
+  const [input, setInput] = useState<InputPhase>('off')
+  const [inputText, setInputText] = useState('')
+  useEffect(() => {
+    if (!active) return setInput('off')
+    if (voice === 'hearing') {
+      setInputText('')
+      setInput('live')
+    }
+  }, [voice, active])
+  useEffect(() => {
+    if (!active || !heard) return
+    setInputText(heard.text)
+    setInput('text')
+    const fly = window.setTimeout(() => setInput('fly'), 1800)
+    const off = window.setTimeout(() => setInput('off'), 2900)
+    return () => {
+      window.clearTimeout(fly)
+      window.clearTimeout(off)
+    }
+  }, [heard, active])
+  useEffect(() => {
+    if (input === 'live' && voice !== 'hearing' && voice !== 'transcribing') {
+      const id = window.setTimeout(() => setInput((i) => (i === 'live' ? 'off' : i)), 1500)
+      return () => window.clearTimeout(id)
+    }
+  }, [voice, input])
   const findingsEnd = useRef<HTMLDivElement>(null)
   useEffect(() => findingsEnd.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }), [task?.findings.length])
   const running = task && !task.done
@@ -215,7 +331,7 @@ export default function WorkMode({ active, lastReply, listening }: { active: boo
       <WorkFrame />
       <WorkFrameDots />
     <div className={`work ${active ? 'on' : ''}`}>
-      <section className="wcard w-ask">
+      <section className={`wcard w-ask ${phase === 'idle' ? 'big' : ''}`} style={phase === 'idle' ? box(62, 0, 38, 27) : box(70.6, 0, 29.4, 17)}>
         <div className="w-ask-k">
           <span>WORKSPACE</span>
           <span className={running ? 'hot' : 'muted'}>{running ? '● LIVE' : listening}</span>
@@ -225,9 +341,22 @@ export default function WorkMode({ active, lastReply, listening }: { active: boo
         {lastReply && <div className="w-ask-reply">› {lastReply}</div>}
       </section>
 
-      {task && (
+      {input !== 'off' && (
+        <section className={`wcard w-input in-${input}`} style={input === 'fly' ? box(70.6, 0, 29.4, 17, 0) : box(18, 30, 44, 34)}>
+          <header className="wcard-head">
+            <span>
+              <b>●</b> {input === 'live' ? 'HEARING YOU' : 'YOU SAID'}
+            </span>
+            <span className="hot">MIC</span>
+          </header>
+          <LiveBars />
+          <div className="input-text">{inputText || '…'}</div>
+        </section>
+      )}
+
+      {task && layout && (
         <>
-          <section className="wcard w-queries" key={`q-${task.id}`}>
+          <section className={`wcard w-queries ${layout.queries === 'stage' ? 'focus' : ''} ${docked(layout.queries) ? 'docked' : ''}`} key={`q-${task.id}`} style={place(layout.queries)}>
             <header className="wcard-head">
               <span>
                 <b>01</b> QUERIES
@@ -244,9 +373,9 @@ export default function WorkMode({ active, lastReply, listening }: { active: boo
             </div>
           </section>
 
-          <GodEye task={task} key={`e-${task.id}`} />
+          <GodEye task={task} key={`e-${task.id}`} style={place(layout.eye)} className={`${layout.eye === 'stage' ? 'focus' : ''} ${docked(layout.eye) ? 'docked' : ''}`} />
 
-          <section className="wcard w-findings" key={`f-${task.id}`} style={{ animationDelay: '0.2s' }}>
+          <section className={`wcard w-findings ${layout.findings === 'stage' ? 'focus' : ''}`} key={`f-${task.id}`} style={place(layout.findings)}>
             <header className="wcard-head">
               <span>
                 <b>03</b> FINDINGS
@@ -268,7 +397,7 @@ export default function WorkMode({ active, lastReply, listening }: { active: boo
             </div>
           </section>
 
-          <section className="wcard w-sources" key={`s-${task.id}`} style={{ animationDelay: '0.3s' }}>
+          <section className={`wcard w-sources ${layout.sources === 'stage' ? 'focus' : ''} ${docked(layout.sources) ? 'docked' : ''}`} key={`s-${task.id}`} style={place(layout.sources)}>
             <header className="wcard-head">
               <span>
                 <b>04</b> SOURCES
@@ -286,30 +415,36 @@ export default function WorkMode({ active, lastReply, listening }: { active: boo
             </div>
           </section>
 
-          <section className="wcard w-run" key={`r-${task.id}`} style={{ animationDelay: '0.4s' }}>
+          {/* The RUNNING strip: one tile per step, laid along the curve, plus the progress tile. */}
+          {task.steps.map((st, i) => (
+            <section key={`r-${task.id}-${st.key}`} className={`wcard w-step ${st.status}`} style={{ ...box(i * 20.2, 83, 19.2, 17), animationDelay: `${0.1 + i * 0.08}s` }}>
+              <header className="wcard-head">
+                <span>
+                  <b>{String(i + 1).padStart(2, '0')}</b> {st.label}
+                </span>
+                <span className="ri">{icon[st.status]}</span>
+              </header>
+              <div className="rd">{st.detail || (st.status === 'pending' ? 'waiting' : '')}</div>
+              <div className="step-bar">
+                <i />
+              </div>
+            </section>
+          ))}
+          <section className={`wcard w-run ${running ? 'live' : ''}`} key={`r-${task.id}`} style={{ ...box(80.8, 83, 19.2, 17), animationDelay: '0.45s' }}>
             <header className="wcard-head">
               <span>
                 <b>05</b> {running ? 'RUNNING' : 'COMPLETE'}
               </span>
               <span className={running ? 'hot' : 'muted'}>
-                {pct}% · <Elapsed task={task} />
+                <Elapsed task={task} />
               </span>
             </header>
-            <div className="run-steps">
-              {task.steps.map((s) => (
-                <div key={s.key} className={`rs ${s.status}`}>
-                  <span className="ri">{icon[s.status]}</span>
-                  <span className="rl">{s.label}</span>
-                  <span className="rd">{s.detail}</span>
-                </div>
-              ))}
-            </div>
+            <div className="run-pct">{pct}%</div>
             <div className="run-bar">
               <i style={{ width: `${pct}%` }} />
             </div>
             <div className="run-foot">
               <span className="act">{task.activity}</span>
-              <span className="runlog">{task.log.slice(-3).join('   ')}</span>
             </div>
           </section>
         </>

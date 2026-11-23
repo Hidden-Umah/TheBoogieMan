@@ -369,3 +369,52 @@ def test_llm_can_shut_down():
     finally:
         r.provider, r.key, r.base, r.http, r.memory = old
         main.state["action"] = None
+
+
+def test_screen_help_clear_phrasing():
+    from commands import Commands
+
+    c = Commands()
+    for p in ["come back to the normal screen", "go back to the main screen", "leave the workspace", "exit work mode", "back to normal"]:
+        assert c.handle(p)[1] == "normal", p
+    for p in ["what can you do?", "show me the commands", "help"]:
+        assert c.handle(p)[1] == "help", p
+    assert c.handle("clear our conversation")[1] == "clear"
+    ask = c.handle("Shut down yourself")
+    assert ask[1] is None and "?" in ask[0]
+
+
+def test_llm_tools_switch_screen_and_background():
+    import json
+
+    import main
+
+    emitted = []
+
+    async def capture(t, p):
+        emitted.append((t, p))
+
+    def handler(request: httpx.Request):
+        body = json.loads(request.content)
+        names = {t["function"]["name"] for t in body["tools"]}
+        assert {"shutdown", "switch_screen", "set_background", "show_commands", "clear_conversation", "research"} <= names
+        last = body["messages"][-1]
+        if last["role"] == "user":
+            calls = [
+                {"id": "a", "type": "function", "function": {"name": "switch_screen", "arguments": json.dumps({"screen": "normal"})}},
+                {"id": "b", "type": "function", "function": {"name": "set_background", "arguments": json.dumps({"background": "sea"})}},
+            ]
+            return httpx.Response(200, json={"choices": [{"message": {"content": "", "tool_calls": calls}}]})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "Done, boss."}}]})
+
+    r = main.replier
+    old = (r.provider, r.key, r.base, r.http, r.memory, main.hub.emit)
+    try:
+        r.provider, r.key, r.base = "groq", "k", "https://api.groq.com/openai/v1"
+        r.http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        r.memory = tmp_memory()
+        main.hub.emit = capture
+        assert asyncio.run(main.think("take me home and put the ocean on behind")) == "Done, boss."
+        assert ("ui.mode", {"mode": "normal"}) in emitted and ("ui.background", {"cmd": "sea"}) in emitted
+    finally:
+        r.provider, r.key, r.base, r.http, r.memory, main.hub.emit = old

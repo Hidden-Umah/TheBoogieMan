@@ -90,6 +90,13 @@ async def ui_action(action: str | None) -> str | None:
     if action in ("work", "normal"):
         await hub.emit("ui.mode", {"mode": action})
         return None
+    if action == "help":
+        await hub.emit("ui.help", {"show": True})
+        return None
+    if action == "clear":
+        memory.clear_history()
+        await push_memory()
+        return None
     if action and action.startswith("bg:"):
         await hub.emit("ui.background", {"cmd": action[3:]})
         return None
@@ -123,8 +130,35 @@ async def think(text: str) -> str:
 async def tool_shutdown(args: dict[str, Any]) -> str:
     if args.get("now"):
         state["action"] = "shutdown"
-        return "Shutdown scheduled right after your reply. Say a very short goodbye."
-    return f"Ask exactly this and nothing else: {commands.ask_shutdown()}"
+        return "Shutdown scheduled: the app closes right after your reply. Say a very short goodbye."
+    return f"Not shut down yet. Ask exactly this and nothing else: {commands.ask_shutdown()}"
+
+
+async def tool_switch_screen(args: dict[str, Any]) -> str:
+    screen = str(args.get("screen", "")).lower()
+    if screen not in ("work", "normal"):
+        return "Error: screen must be 'work' or 'normal'."
+    await hub.emit("ui.mode", {"mode": screen})
+    return f"Switched to the {screen} screen."
+
+
+async def tool_set_background(args: dict[str, Any]) -> str:
+    name = str(args.get("background", "")).lower()
+    if name not in ("next", "sea", "nebula", "custom", "off", "on"):
+        return "Error: background must be one of next, sea, nebula, custom, off, on."
+    await hub.emit("ui.background", {"cmd": name})
+    return f"Background: {name}."
+
+
+async def tool_show_commands(args: dict[str, Any]) -> str:
+    await hub.emit("ui.help", {"show": bool(args.get("show", True))})
+    return "The commands card is on his screen. Just say one line about it."
+
+
+async def tool_clear_conversation(args: dict[str, Any]) -> str:
+    memory.clear_history()
+    await push_memory()
+    return "Recent conversation cleared (long-term facts kept)."
 
 
 async def tool_research(args: dict[str, Any]) -> str:
@@ -137,11 +171,61 @@ async def tool_research(args: dict[str, Any]) -> str:
 replier.add_tool(
     {
         "name": "shutdown",
-        "description": "Shut yourself (the Boogeyman app) down. now=true when he clearly wants it immediately; "
-        "otherwise now=false, which asks him to confirm first.",
-        "parameters": {"type": "object", "properties": {"now": {"type": "boolean"}}, "required": ["now"]},
+        "description": "Shut yourself down: closes the Boogeyman app completely (not the computer). "
+        "You CAN do this. Use it whenever the boss wants you off, gone, asleep, closed or offline, however he says it. "
+        "now=true when he says now/immediately or has already confirmed; now=false asks him to confirm first.",
+        "parameters": {
+            "type": "object",
+            "properties": {"now": {"type": "boolean", "description": "true = close right after this reply; false = ask to confirm"}},
+            "required": ["now"],
+        },
     },
     tool_shutdown,
+)
+replier.add_tool(
+    {
+        "name": "switch_screen",
+        "description": "Switch the boss's screen. 'work' opens the workspace (for tasks and research); "
+        "'normal' returns to the main screen with the core. Use for 'let's work', 'back to normal', 'main screen', "
+        "'leave the workspace', and similar.",
+        "parameters": {
+            "type": "object",
+            "properties": {"screen": {"type": "string", "enum": ["work", "normal"]}},
+            "required": ["screen"],
+        },
+    },
+    tool_switch_screen,
+)
+replier.add_tool(
+    {
+        "name": "set_background",
+        "description": "Change the moving background video. 'sea' = underwater shipwreck, 'nebula' = dark space smoke, "
+        "'custom' = his own clip, 'next' = cycle, 'off' / 'on' = hide / show.",
+        "parameters": {
+            "type": "object",
+            "properties": {"background": {"type": "string", "enum": ["next", "sea", "nebula", "custom", "off", "on"]}},
+            "required": ["background"],
+        },
+    },
+    tool_set_background,
+)
+replier.add_tool(
+    {
+        "name": "show_commands",
+        "description": "Show (or hide) the card listing everything the boss can say and do. "
+        "Use when he asks what you can do, for help, or for the commands.",
+        "parameters": {"type": "object", "properties": {"show": {"type": "boolean"}}, "required": []},
+    },
+    tool_show_commands,
+)
+replier.add_tool(
+    {
+        "name": "clear_conversation",
+        "description": "Wipe the recent conversation history (long-term memory facts stay). "
+        "Use when he asks to clear or reset the chat, or wants a fresh start.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    tool_clear_conversation,
 )
 replier.add_tool(
     {

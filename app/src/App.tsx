@@ -9,6 +9,7 @@ import Visor from './components/Visor'
 import { setLevel, setSpectrum } from './lib/audio'
 import { brainStatus, onBrainMessage, onBrainStatus, sendToBrain } from './lib/brain'
 import { hud, saveBg, type Exchange, type Fact } from './hud/store'
+import CommandsCard from './components/CommandsCard'
 import WorkMode from './components/WorkMode'
 import { BACKGROUNDS } from './three/VideoBackground'
 import HudScreens from './three/HudScreens'
@@ -53,6 +54,9 @@ export default function App() {
   const [shutting, setShutting] = useState(false)
   const [work, setWork] = useState(false)
   const [lastReply, setLastReply] = useState('')
+  const [heard, setHeard] = useState<{ id: number; text: string } | null>(null)
+  const [help, setHelp] = useState(false)
+  const closeHelp = useCallback(() => setHelp(false), [])
   const customBg = useRef(false)
   const factIds = useRef<Set<string>>(new Set())
   const exId = useRef(0)
@@ -134,8 +138,12 @@ export default function App() {
           applyMemory(p as { facts?: Fact[] })
           break
         case 'ui.mode':
+          setHelp(false)
           setWork(p.mode === 'work')
           log('sys', p.mode === 'work' ? 'Workspace open' : 'Back to the core')
+          break
+        case 'ui.help':
+          setHelp(p.show !== false)
           break
         case 'ui.background':
           applyBackground(String(p.cmd))
@@ -156,6 +164,8 @@ export default function App() {
         case 'voice.transcript':
           setExchanges((xs) => [...xs.slice(-11), { id: exId.current++, you: String(p.text), him: '', at: performance.now() }])
           setTurns((n) => n + 1)
+          setHeard({ id: performance.now(), text: String(p.text) })
+          setHelp(false) // a new command closes the card; "what can you do" reopens it right after
           log('boss', String(p.text))
           break
         case 'voice.reply':
@@ -215,6 +225,9 @@ export default function App() {
         if (!hud.bg) applyBackground('on')
         else applyBackground('next')
         log('sys', `Background: ${hud.bg ? hud.bgName : 'off'}`)
+      } else if (k === 'h') {
+        e.preventDefault()
+        setHelp((h) => !h)
       } else if (k === 'm') {
         e.preventDefault()
         const next = !mutedRef.current
@@ -267,10 +280,11 @@ export default function App() {
           )}
           <Visor active={mode === 'devil'} armedAt={armedAt} />
           <HudScreens />
-          <WorkMode active={work} lastReply={lastReply} listening={voice === 'hearing' ? 'HEARING YOU' : voice === 'muted' ? 'MIC MUTED' : 'LISTENING'} />
+          <WorkMode active={work} lastReply={lastReply} voice={voice} heard={heard} listening={voice === 'hearing' ? 'HEARING YOU' : voice === 'muted' ? 'MIC MUTED' : 'LISTENING'} />
+          <CommandsCard open={help} onClose={closeHelp} />
           <Captions you="" him="" state={connected ? voice : 'unavailable'} detail={connected ? detail : 'brain offline'} />
           <div className="keyhint">
-            <kbd>CTRL</kbd>+<kbd>M</kbd> {muted ? 'UNMUTE' : 'MUTE'} &nbsp; <kbd>CTRL</kbd>+<kbd>B</kbd> NEXT BACKGROUND &nbsp; <kbd>CTRL</kbd>+<kbd>D</kbd>{' '}
+            <kbd>CTRL</kbd>+<kbd>H</kbd> COMMANDS &nbsp; <kbd>CTRL</kbd>+<kbd>M</kbd> {muted ? 'UNMUTE' : 'MUTE'} &nbsp; <kbd>CTRL</kbd>+<kbd>B</kbd> NEXT BACKGROUND &nbsp; <kbd>CTRL</kbd>+<kbd>D</kbd>{' '}
             {mode === 'devil' ? 'EXIT DEVIL MODE' : 'DEVIL MODE'}
           </div>
         </div>

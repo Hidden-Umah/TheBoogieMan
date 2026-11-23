@@ -166,6 +166,11 @@ He doesn't listen while he talks, so he can't hear himself. Captions under the c
 Some things shouldn't wait for an AI. `brain/commands.py` checks every utterance first:
 
 - **Shutdown**: "shut down" asks for confirmation (valid for 30 s); "shut down now" goes straight away. He says goodbye, the brain sends `app.shutdown`, the UI plays a CRT-style power-off, and Rust's `quit_app` closes the app (the brain dies with it). This shuts down the Boogeyman, not the computer.
+- **Screens**: "let's get to work" / "back to the normal screen" (also "exit work mode", "go home", "we're done here").
+- **Help**: "what can you do?" sends `ui.help` and the commands card opens (`Ctrl+H` too).
+- **Clear**: "clear our conversation" wipes history, keeps facts.
+
+Anything the regexes miss goes to the LLM, which has the same actions as tools with descriptions (`shutdown`, `switch_screen`, `set_background`, `show_commands`, `clear_conversation`, `research`), so free phrasing still works.
 
 ## Work mode and research
 
@@ -178,7 +183,7 @@ Research is a tool the model can call (or say "research ..." directly). `brain/r
 3. **Read**: opens the top pages (one per site).
 4. **Analyze**: the LLM writes cited findings, a spoken summary and a confidence score.
 
-Cards fly in from the right: queries, a god's-eye radar (every source is a blip, read ones light up) with level meters, findings, sources, and a RUNNING strip with live steps and progress. He speaks the summary at the end. Asking for research in normal mode opens the workspace automatically.
+The cards are choreographed by phase. While you talk, a **HEARING YOU** card rises in the middle with your live mic bars, shows your words, then flies up into the header. Then the stage follows the work: **plan** puts the queries centre; **search** docks them at the top and brings the god's-eye radar (every source a blip, read ones light up) centre with sources at the side; **read** swaps sources to centre; **analyze** brings the findings centre. When it's done everything settles into a dashboard. A RUNNING strip at the bottom shows live steps and progress. Positions live in `SLOTS`/`LAYOUT` in `WorkMode.tsx`; CSS transitions do the motion. Every card also sits on the curve: `lib/curve.ts` turns each one toward you by how far left or right it is and brings its outer edge closer, so the workspace (and the commands card) wraps around you like the side screens, and cards re-angle as they glide. He speaks the summary at the end. Asking for research in normal mode opens the workspace automatically.
 
 ## Personality and memory
 

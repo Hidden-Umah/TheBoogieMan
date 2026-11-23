@@ -105,6 +105,7 @@ class VoiceLoop:
                 text = (await self.transcribe(to_wav(pcm))).strip()  # type: ignore[misc]
                 if len(text) < 2 or text.startswith("("):
                     return  # noise, not words
+                log.info("heard: %r", text)
                 await self.emit("voice.transcript", {"text": text})
                 await self.respond(text, locked=True)
             except Exception as e:  # keep listening whatever happens
@@ -124,6 +125,7 @@ class VoiceLoop:
                 return await self.respond(text, locked=True)
         await self.state("thinking")
         out = await self.reply(text)
+        log.info("reply: %r", out[:160])
         await self.emit("voice.reply", {"text": out})
         await self.say(out, locked=True)
         if self.after_turn:
