@@ -9,6 +9,7 @@ import Visor from './components/Visor'
 import { setLevel, setSpectrum } from './lib/audio'
 import { brainStatus, onBrainMessage, onBrainStatus, sendToBrain } from './lib/brain'
 import { hud, saveBg, type Exchange, type Fact } from './hud/store'
+import BgNotice from './components/BgNotice'
 import CommandsCard from './components/CommandsCard'
 import WorkMode from './components/WorkMode'
 import { BACKGROUNDS } from './three/VideoBackground'
@@ -294,6 +295,7 @@ export default function App() {
           <HudScreens />
           <WorkMode active={work} lastReply={lastReply} voice={voice} heard={heard} listening={voice === 'hearing' ? 'HEARING YOU' : voice === 'muted' ? 'MIC MUTED' : 'LISTENING'} />
           <CommandsCard open={help} onClose={closeHelp} />
+          <BgNotice />
           <Captions you="" him="" state={connected ? voice : 'unavailable'} detail={connected ? detail : 'brain offline'} />
           <div className="keyhint">
             <kbd>CTRL</kbd>+<kbd>H</kbd> COMMANDS &nbsp; <kbd>CTRL</kbd>+<kbd>M</kbd> {muted ? 'UNMUTE' : 'MUTE'} &nbsp; <kbd>CTRL</kbd>+<kbd>B</kbd> NEXT BACKGROUND &nbsp; <kbd>CTRL</kbd>+<kbd>D</kbd>{' '}

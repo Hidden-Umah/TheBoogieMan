@@ -1,7 +1,16 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { invoke } from '@tauri-apps/api/core'
 import { hud } from '../hud/store'
+
+/** Print to the terminal running `make dev` (and the devtools console). */
+function bgLog(line: string) {
+  console.info('[bg]', line)
+  invoke('ui_log', { line: `[bg] ${line}` }).catch(() => {})
+}
+
+const STALL_MS = 4000 // a video that hasn't moved for this long counts as stuck
 
 /**
  * Background videos playing behind everything, seen through a blur layer.
@@ -30,6 +39,8 @@ export default function VideoBackground({ devil }: { devil: React.RefObject<numb
   const fade = useRef(0)
   const current = useRef<string>('')
   const texRef = useRef<THREE.CanvasTexture | null>(null)
+  const nextRef = useRef<() => void>(() => {})
+  const watch = useRef({ t: -1, at: 0, ok: false })
   const { video, canvas, ctx } = useMemo(() => {
     const video = document.createElement('video')
     video.muted = true
@@ -67,12 +78,26 @@ export default function VideoBackground({ devil }: { devil: React.RefObject<numb
       if (current.current !== bg.name) return
       if (i >= bg.sources.length) {
         hud.bgMissing = bg.name
+        const can = ['video/webm; codecs="vp9"', 'video/webm; codecs="vp8"', 'video/mp4; codecs="avc1.42E01E"']
+          .map((t) => `${t.split(';')[0]}/${t.split('"')[1]}=${video.canPlayType(t) || 'no'}`)
+          .join(' ')
+        bgLog(`${bg.name}: no source would play (${can}). Fix: sudo apt install gstreamer1.0-plugins-good gstreamer1.0-libav, then restart.`)
+        if (bg.name !== 'nebula') hud.bgName = 'nebula' // don't leave him on a black screen
         return
       }
-      video.src = bg.sources[i++]
-      video.play().catch(() => {})
+      const src = bg.sources[i++]
+      watch.current = { t: -1, at: performance.now(), ok: false }
+      video.src = src
+      video.play().catch((e) => {
+        if (e?.name !== 'NotSupportedError' && e?.name !== 'AbortError') bgLog(`${src}: play() refused: ${e}`) // (errors are logged by onerror)
+      })
     }
-    video.onerror = next
+    nextRef.current = next
+    video.onerror = () => {
+      const e = video.error
+      bgLog(`${video.currentSrc || video.src}: error ${e?.code ?? '?'} ${e?.message ?? ''} — trying the next file`)
+      next()
+    }
     next()
   }
 
@@ -106,6 +131,26 @@ export default function VideoBackground({ devil }: { devil: React.RefObject<numb
       return
     }
     if (hud.bg && video.paused && !switching) video.play().catch(() => {})
+    // Watchdog: a video that never starts or freezes moves on to the next file.
+    if (hud.bg && !switching && !video.paused) {
+      const now = performance.now()
+      const w8 = watch.current
+      if (video.currentTime !== w8.t) {
+        if (w8.t >= 0 && !w8.ok) {
+          w8.ok = true
+          if (hud.bgMissing === current.current) hud.bgMissing = null
+          bgLog(`${current.current} playing: ${video.currentSrc.split('/').pop()} ${video.videoWidth}x${video.videoHeight}`)
+        }
+        w8.t = video.currentTime
+        w8.at = now
+      } else if (now - w8.at > STALL_MS) {
+        bgLog(
+          `${video.currentSrc.split('/').pop() || '?'} stuck (readyState ${video.readyState}, network ${video.networkState}, t=${video.currentTime.toFixed(2)}) — trying the next file`,
+        )
+        w8.at = now
+        nextRef.current()
+      }
+    }
     const bg = backgroundByName(current.current)
     const w = canvas.width
     const h = canvas.height

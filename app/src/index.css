@@ -455,3 +455,12 @@ kbd { font-family: var(--mono); border: 1px solid var(--line-strong); border-rad
 .run-foot .act { color: var(--fg); }
 .run-foot .act::before { content: '› '; color: var(--accent); }
 .runlog { overflow: hidden; text-overflow: ellipsis; }
+
+/* Background video problem */
+.bg-notice {
+  position: fixed; left: 50%; top: 18px; transform: translateX(-50%); z-index: 30; max-width: min(720px, 90vw);
+  display: grid; gap: 4px; padding: 10px 16px; border-radius: 12px; font-size: 11.5px; line-height: 1.5; color: var(--dim);
+  background: rgba(10, 6, 6, 0.78); border: 1px solid rgba(255, 120, 90, 0.35); backdrop-filter: blur(12px); animation: fade 0.4s ease both;
+}
+.bg-notice b { font-weight: 400; letter-spacing: 0.2em; color: #ff8a6a; font-size: 10.5px; }
+.bg-notice code { color: var(--fg); font-size: 11px; }

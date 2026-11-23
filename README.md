@@ -96,6 +96,8 @@ The model also has these as **tools** (`shutdown`, `switch_screen`, `set_backgro
 
 **Backgrounds**: `nebula` (an original loop from `tools/gen_background.py`) and `sea` (the underwater shipwreck). Drop `custom.mp4` or `custom.webm` into `app/public/bg/` and it joins the list. `.mp4` playback on Ubuntu needs `sudo apt install gstreamer1.0-libav` (the sea also ships as `.webm`, which plays without it).
 
+**Background video not playing?** Look in the terminal for lines starting with `[bg]`: they say which file failed and why. The app already prefers software decoding, because hardware decoders often give black or frozen frames here; you can override that by setting `GST_PLUGIN_FEATURE_RANK` yourself. If a video won't play at all, run `sudo apt install gstreamer1.0-plugins-good gstreamer1.0-libav` and restart. A stuck video falls back to the next file, then to the nebula, and a notice appears on screen.
+
 **Research** uses DuckDuckGo (free, no key) through the `ddgs` package; run `make setup` once to install it.
 
 The status under the core tells you what he's doing: LISTENING, HEARING YOU, THINKING, SPEAKING. If it says VOICE OFFLINE, the reason is shown next to it (usually a missing key or no microphone).
