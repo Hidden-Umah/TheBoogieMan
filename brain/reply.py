@@ -82,6 +82,8 @@ class Replier:
     ):
         self.memory = memory or Memory()
         self.on_memory = on_memory
+        # Extra tools registered by the app: name -> (schema, async handler(args) -> result str)
+        self.extra: dict[str, tuple[dict[str, Any], Callable[[dict[str, Any]], Awaitable[str]]]] = {}
         self.http = http or httpx.AsyncClient(timeout=httpx.Timeout(40.0, connect=10.0))
         self.provider = resolve_provider(provider, anthropic_key, groq_key, openai_key)
         self.model = model or DEFAULT_MODEL.get(self.provider, "")
@@ -140,7 +142,22 @@ class Replier:
         return out
 
     # ── tools ──
+    def add_tool(self, schema: dict[str, Any], handler: Callable[[dict[str, Any]], Awaitable[str]]) -> None:
+        self.extra[schema["name"]] = (schema, handler)
+
+    @property
+    def tools(self) -> list[dict[str, Any]]:
+        return TOOLS + [schema for schema, _ in self.extra.values()]
+
     async def run_tool(self, name: str, args: dict[str, Any]) -> str:
+        if name in self.extra:
+            try:
+                result = await self.extra[name][1](args)
+            except Exception as e:
+                log.exception("tool %s failed", name)
+                result = f"Error: {e}"
+            log.info("tool %s(%s) -> %s", name, args, result[:200])
+            return result
         try:
             if name == "remember":
                 fact = self.memory.remember(str(args.get("fact", "")))
@@ -157,6 +174,25 @@ class Replier:
             await self.on_memory()
         return result
 
+    async def complete(self, system: str, prompt: str) -> str:
+        """One plain completion, no tools, no history (used by the research agent)."""
+        if self.anthropic:
+            msg = await self.anthropic.messages.create(
+                model=self.model, max_tokens=900, system=system, messages=[{"role": "user", "content": prompt}]
+            )
+            return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+        body: dict[str, Any] = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            "max_tokens": 900,
+            "temperature": 0.3,
+        }
+        if "gpt-oss" in self.model:
+            body["reasoning_effort"] = "low"
+        r = await self.http.post(f"{self.base}/chat/completions", headers={"Authorization": f"Bearer {self.key}"}, json=body)
+        r.raise_for_status()
+        return str(r.json()["choices"][0]["message"].get("content") or "")
+
     # ── OpenAI-compatible (Groq, Gemini, OpenRouter...) ──
     async def _openai_compatible(self, text: str) -> str:
         messages: list[dict[str, Any]] = [
@@ -164,7 +200,7 @@ class Replier:
             *self.history,
             {"role": "user", "content": text},
         ]
-        tools = [{"type": "function", "function": t} for t in TOOLS]
+        tools = [{"type": "function", "function": t} for t in self.tools]
         for _ in range(MAX_TOOL_ROUNDS):
             body: dict[str, Any] = {
                 "model": self.model,
@@ -198,7 +234,7 @@ class Replier:
     # ── Anthropic ──
     async def _anthropic(self, text: str) -> str:
         messages: list[dict[str, Any]] = [*self.history, {"role": "user", "content": text}]
-        tools = [{"name": t["name"], "description": t["description"], "input_schema": t["parameters"]} for t in TOOLS]
+        tools = [{"name": t["name"], "description": t["description"], "input_schema": t["parameters"]} for t in self.tools]
         for _ in range(MAX_TOOL_ROUNDS):
             msg = await self.anthropic.messages.create(  # type: ignore[union-attr]
                 model=self.model, max_tokens=700, system=self.system_prompt(), messages=messages, tools=tools

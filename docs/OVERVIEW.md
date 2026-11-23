@@ -84,7 +84,7 @@ TheBoogieMan/
 │   │   │   ├── Scene.tsx       # three.js scene: eye, rings, voice ring, space, camera, bloom, devil palette
 │   │   │   ├── DataArcs.tsx    # fragmented radial data rings (wireframe cells + hot orange cells)
 │   │   │   ├── DotCore.tsx     # normal-mode core: 3D dot-matrix sphere that breathes / ripples / pulses
-│   │   │   ├── VideoBackground.tsx # blurred background video (Ctrl+B)
+│   │   │   ├── VideoBackground.tsx # background videos behind a blur layer (nebula, sea, custom)
 │   │   │   ├── HudScreens.tsx  # curved side screens: one gentle ultrawide-monitor curve, head-turn with the mouse
 │   │   │   └── eyeShader.ts    # GLSL for the cyborg eyeball (iris, pupil / devil slit, sclera panels)
 │   │   ├── components/
@@ -94,6 +94,8 @@ TheBoogieMan/
 │   │   │   ├── LogPanel.tsx    # 03 System log card
 │   │   │   ├── InfoPanel.tsx   # 04 result card that swipes in and types out
 │   │   │   ├── Visor.tsx       # Devil mode: helmet visor, armour, contours, reticle, shutter
+│   │   │   ├── WorkMode.tsx    # workspace: ask card, queries, god's eye, findings, sources, running
+│   │   │   ├── WorkFrame.tsx   # the holo-blue frame around the workspace
 │   │   ├── hud/
 │   │   │   ├── store.ts        # state the curved screens draw from (exchanges, facts, mode)
 │   │   │   └── draw.ts         # canvas drawing for each screen: voice patterns, response, memory
@@ -116,7 +118,8 @@ TheBoogieMan/
 │   ├── persona.md            #   his personality (edit me)
 │   ├── memory.py             #   long-term memory: facts + recent conversation on disk
 │   ├── config.py             #   settings from brain/.env
-│   ├── commands.py           #   built-in commands before the LLM (shutdown)
+│   ├── commands.py           #   built-in commands before the LLM (shutdown, work mode, backgrounds)
+│   ├── research.py           #   research agent: plan -> search -> read -> analyze, streamed as task.* events
 │   ├── test_main.py          #   tests
 │   └── requirements*.txt
 ├── shared/messages.md        # The message protocol
@@ -163,6 +166,19 @@ He doesn't listen while he talks, so he can't hear himself. Captions under the c
 Some things shouldn't wait for an AI. `brain/commands.py` checks every utterance first:
 
 - **Shutdown**: "shut down" asks for confirmation (valid for 30 s); "shut down now" goes straight away. He says goodbye, the brain sends `app.shutdown`, the UI plays a CRT-style power-off, and Rust's `quit_app` closes the app (the brain dies with it). This shuts down the Boogeyman, not the computer.
+
+## Work mode and research
+
+"Let's get to work" pans the camera so the core and curved screens slide off to the left, and the workspace opens inside a holo-blue frame over the background: **"Boss, what do you want to do?"**.
+
+Research is a tool the model can call (or say "research ..." directly). `brain/research.py` runs four stages and streams each one to the UI as `task.*` events:
+
+1. **Plan**: the LLM breaks the request into 2–3 search queries.
+2. **Search**: DuckDuckGo (free, no key) for each query; every new source appears as it's found.
+3. **Read**: opens the top pages (one per site).
+4. **Analyze**: the LLM writes cited findings, a spoken summary and a confidence score.
+
+Cards fly in from the right: queries, a god's-eye radar (every source is a blip, read ones light up) with level meters, findings, sources, and a RUNNING strip with live steps and progress. He speaks the summary at the end. Asking for research in normal mode opens the workspace automatically.
 
 ## Personality and memory
 

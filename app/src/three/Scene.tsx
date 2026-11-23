@@ -279,27 +279,39 @@ function Space({ live }: { live: React.RefObject<Live> }) {
 
 /* ─────────────────────────── Camera ─────────────────────────── */
 
-function CameraRig({ booted }: { booted: boolean }) {
+function CameraRig({ booted, work }: { booted: boolean; work: boolean }) {
   const { camera } = useThree()
   const flying = useRef(true)
+  const controls = useRef<any>(null)
+  const pan = useRef(0)
 
   useEffect(() => {
     camera.position.set(0, 0, 60)
   }, [camera])
 
   useFrame((_, dt) => {
+    // Work mode: slide the whole rig off to the left by panning camera + orbit target right.
+    const want = work ? 16 : 0
+    const next = pan.current + (want - pan.current) * (1 - Math.exp(-dt * 2.2))
+    const d = next - pan.current
+    pan.current = next
+    if (Math.abs(d) > 1e-5) {
+      camera.position.x += d
+      if (controls.current) controls.current.target.x += d
+    }
     if (!flying.current) return
     const targetZ = booted ? 7.6 : 45
     const k = 1 - Math.exp(-dt * (booted ? 1.6 : 0.4))
     camera.position.z += (targetZ - camera.position.z) * k
-    camera.position.x += (0 - camera.position.x) * k
+    camera.position.x += (pan.current - camera.position.x) * k
     camera.position.y += (0 - camera.position.y) * k
     if (booted && Math.abs(camera.position.z - targetZ) < 0.02) flying.current = false
   })
 
   return (
     <OrbitControls
-      enabled={booted}
+      ref={controls}
+      enabled={booted && !work}
       enablePan={false}
       enableDamping
       dampingFactor={0.06}
@@ -326,11 +338,11 @@ function devilRef(live: React.RefObject<Live>) {
   return r as React.RefObject<number>
 }
 
-function Rig({ state, mode, booted }: { state: EyeState; mode: Mode; booted: boolean }) {
+function Rig({ state, mode, booted, work }: { state: EyeState; mode: Mode; booted: boolean; work: boolean }) {
   const live = useLive(state, mode)
   return (
     <>
-      <CameraRig booted={booted} />
+      <CameraRig booted={booted} work={work} />
       <VideoBackground devil={devilRef(live)} />
       <Space live={live} />
       <DotCore live={live} mouse={mouse} />
@@ -341,7 +353,7 @@ function Rig({ state, mode, booted }: { state: EyeState; mode: Mode; booted: boo
   )
 }
 
-export default function Scene({ state, mode, booted }: { state: EyeState; mode: Mode; booted: boolean }) {
+export default function Scene({ state, mode, booted, work = false }: { state: EyeState; mode: Mode; booted: boolean; work?: boolean }) {
   const devil = mode === 'devil'
   return (
     <div className="scene">
@@ -351,7 +363,7 @@ export default function Scene({ state, mode, booted }: { state: EyeState; mode: 
         camera={{ fov: 42, near: 0.1, far: 400, position: [0, 0, 60] }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
       >
-        <Rig state={state} mode={mode} booted={booted} />
+        <Rig state={state} mode={mode} booted={booted} work={work} />
         <EffectComposer multisampling={0}>
           <Bloom mipmapBlur intensity={devil ? 1.6 : 1.0} luminanceThreshold={0.2} luminanceSmoothing={0.3} radius={0.75} />
           <ChromaticAberration
