@@ -11,6 +11,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@fontsource/doto": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@fontsource/orbitron": "^5.3.0",
     "@react-three/drei": "^10.7.9",

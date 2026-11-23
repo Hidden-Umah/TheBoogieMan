@@ -37,8 +37,10 @@ function Card({ info, onClose }: { info: Info; onClose: () => void }) {
   const { shown, done } = useTypewriter(info.body)
   return (
     <div className="info-card">
-      <header className="panel-head">
-        <span>{info.title}</span>
+      <header className="card-head">
+        <span>
+          <b>04</b> {info.title}
+        </span>
         <button className="x" onClick={onClose} aria-label="Close">
           ✕
         </button>
@@ -66,7 +68,7 @@ function Card({ info, onClose }: { info: Info; onClose: () => void }) {
  */
 export default function InfoPanel({ info, onClose }: { info: Info | null; onClose: () => void }) {
   return (
-    <aside className={`panel info ${info ? 'open' : ''}`}>
+    <aside className={`card info ${info ? 'open' : ''}`}>
       {info && <Card key={info.key} info={info} onClose={onClose} />}
     </aside>
   )

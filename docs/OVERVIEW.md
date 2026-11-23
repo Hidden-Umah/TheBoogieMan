@@ -81,12 +81,16 @@ TheBoogieMan/
 │   ├── src/                  # React + TypeScript UI (the face)
 │   │   ├── App.tsx           #   boot → HUD, wires everything to the brain
 │   │   ├── three/
-│   │   │   ├── Scene.tsx       # three.js scene: eye, gyroscope rings, voice ring, space, camera, bloom
-│   │   │   └── eyeShader.ts    # GLSL for the cyborg eyeball (iris, pupil, sclera panels)
+│   │   │   ├── Scene.tsx       # three.js scene: eye, rings, voice ring, space, camera, bloom, devil palette
+│   │   │   ├── DataArcs.tsx    # fragmented radial data rings (wireframe cells + hot orange cells)
+│   │   │   └── eyeShader.ts    # GLSL for the cyborg eyeball (iris, pupil / devil slit, sclera panels)
 │   │   ├── components/
 │   │   │   ├── BootScreen.tsx  # "Welcome to the Boogeyman" + loading, waits for the brain
-│   │   │   ├── LogPanel.tsx    # streaming system log
-│   │   │   ├── InfoPanel.tsx   # result screen that swipes in and types out
+│   │   │   ├── Cards.tsx       # dot-matrix cards: 01 Agent status, 02 System (live CPU/RAM from Rust)
+│   │   │   ├── dots.tsx        # dot-matrix primitives: DotRing, DotWave, DotBars, Card
+│   │   │   ├── LogPanel.tsx    # 03 System log card
+│   │   │   ├── InfoPanel.tsx   # 04 result card that swipes in and types out
+│   │   │   ├── Visor.tsx       # Devil mode: helmet visor, armour, contours, reticle, shutter
 │   │   │   ├── CommandBar.tsx  # the >_ input
 │   │   │   └── HudFrame.tsx    # corners, clock, link/latency/state
 │   │   └── lib/brain.ts      #   typed functions to talk to Rust
@@ -95,6 +99,7 @@ TheBoogieMan/
 │       ├── src/sidecar.rs    #   starts/stops the Python brain
 │       ├── src/brain.rs      #   WebSocket link to the brain
 │       ├── src/message.rs    #   the { id, type, payload } struct
+│       ├── src/stats.rs      #   live CPU / RAM / uptime for the HUD (sysinfo)
 │       └── tauri.conf.json   #   window, app id, bundling
 ├── brain/                    # Python (the brain)
 │   ├── main.py               #   FastAPI: /health + /ws, handle()
@@ -126,6 +131,11 @@ When you run `make dev`:
 If the pill stays red, check the terminal. The brain's output is printed there with a `[brain]` prefix.
 
 ---
+
+## Modes
+
+- **Normal**: dot-matrix cards, the 3D eye and data rings. White with an orange-red accent.
+- **Devil mode** (`Ctrl+D` to toggle): for serious work. The visor slams shut, armour frames the screen, the pupil turns into a slit, everything goes blood red, and a targeting reticle follows the cursor.
 
 ## Safety rules we're building in from day one
 
