@@ -13,8 +13,12 @@ load_dotenv(Path(__file__).with_name(".env"))
 
 @dataclass(frozen=True)
 class Settings:
+    llm_provider: str
     anthropic_key: str | None
-    model: str
+    groq_key: str | None
+    openai_key: str | None
+    openai_base: str | None
+    model: str | None
     elevenlabs_key: str | None
     voice_id: str
     tts_model: str
@@ -25,8 +29,13 @@ class Settings:
 
 def load() -> Settings:
     return Settings(
+        llm_provider=os.environ.get("LLM_PROVIDER", "auto"),
         anthropic_key=os.environ.get("ANTHROPIC_API_KEY") or None,
-        model=os.environ.get("BOOGEYMAN_MODEL", "claude-haiku-5-5"),
+        # Accept the common misspelling too.
+        groq_key=os.environ.get("GROQ_API_KEY") or os.environ.get("GROK_API_KEY") or None,
+        openai_key=os.environ.get("LLM_API_KEY") or None,
+        openai_base=os.environ.get("LLM_BASE_URL") or None,
+        model=os.environ.get("LLM_MODEL") or os.environ.get("BOOGEYMAN_MODEL") or None,
         elevenlabs_key=os.environ.get("ELEVENLABS_API_KEY") or None,
         # Brian: deep, resonant premade voice. Swap for any voice id in your ElevenLabs account.
         voice_id=os.environ.get("ELEVENLABS_VOICE_ID", "nPczCjzI2devNBz1zQrb"),

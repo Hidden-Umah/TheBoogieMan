@@ -57,7 +57,14 @@ class Hub:
 
 hub = Hub()
 settings = config.load()
-replier = Replier(settings.anthropic_key, settings.model)
+replier = Replier(
+    settings.llm_provider,
+    settings.model,
+    anthropic_key=settings.anthropic_key,
+    groq_key=settings.groq_key,
+    openai_key=settings.openai_key,
+    openai_base=settings.openai_base,
+)
 voice = VoiceLoop(hub.emit, None, None, None, None, replier.reply)
 state: dict[str, Any] = {"greeted": False, "capabilities": {}}
 tasks: set[asyncio.Task] = set()
@@ -71,7 +78,7 @@ def spawn(coro) -> None:
 
 def setup_voice() -> dict[str, Any]:
     """Wire up whatever voice pieces are available. Missing pieces degrade gracefully."""
-    caps: dict[str, Any] = {"claude": replier.online, "elevenlabs": False, "mic": False, "speaker": False, "notes": []}
+    caps: dict[str, Any] = {"brain": replier.label, "claude": replier.online, "elevenlabs": False, "mic": False, "speaker": False, "notes": []}
     if not settings.voice_enabled:
         caps["notes"].append("voice disabled (BOOGEYMAN_VOICE=0)")
         return caps
@@ -99,7 +106,9 @@ def setup_voice() -> dict[str, Any]:
     except Exception as e:
         caps["notes"].append(f"no microphone: {e}")
     if not replier.online:
-        caps["notes"].append("ANTHROPIC_API_KEY not set: using built-in replies")
+        caps["notes"].append("no LLM key (GROQ_API_KEY / ANTHROPIC_API_KEY): using built-in replies")
+    else:
+        log.info("brain: %s", replier.label)
     return caps
 
 

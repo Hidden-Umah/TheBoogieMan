@@ -1,8 +1,10 @@
 import os
 
 os.environ["BOOGEYMAN_VOICE"] = "0"  # no hardware or network in tests
-os.environ.pop("ANTHROPIC_API_KEY", None)
-os.environ.pop("ELEVENLABS_API_KEY", None)
+# Empty (not missing) so brain/.env on a dev machine can't fill them in.
+for k in ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "GROQ_API_KEY", "GROK_API_KEY", "LLM_API_KEY"):
+    os.environ[k] = ""
+os.environ["LLM_PROVIDER"] = "auto"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -40,7 +42,7 @@ def test_ws_roundtrip():
         ws.send_json({"id": "4", "type": "voice.greet", "payload": {}})
         ack = recv_reply(ws, "4")
         assert ack["type"] == "voice.ack"
-        assert ack["payload"]["capabilities"]["claude"] is False
+        assert ack["payload"]["capabilities"]["brain"] == "built-in"
 
         ws.send_json({"id": "5", "type": "nope", "payload": {}})
         assert recv_reply(ws, "5")["type"] == "error"
