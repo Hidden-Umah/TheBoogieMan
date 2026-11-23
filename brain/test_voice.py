@@ -23,6 +23,7 @@ def tmp_memory():
     import tempfile
     from pathlib import Path
 
+    from pathlib import Path
     from memory import Memory
 
     return Memory(Path(tempfile.mkdtemp()) / "memory.json")
@@ -189,6 +190,7 @@ def test_provider_resolution():
 def test_tool_loop_remembers_and_persists():
     import json
 
+    from pathlib import Path
     from memory import Memory
     from reply import Replier
 
@@ -418,3 +420,40 @@ def test_llm_tools_switch_screen_and_background():
         assert ("ui.mode", {"mode": "normal"}) in emitted and ("ui.background", {"cmd": "sea"}) in emitted
     finally:
         r.provider, r.key, r.base, r.http, r.memory, main.hub.emit = old
+
+
+def test_groq_falls_back_to_next_model_on_rate_limit():
+    import asyncio, httpx, tempfile
+    from pathlib import Path
+    from memory import Memory
+    from reply import Replier
+
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        model = __import__("json").loads(req.content)["model"]
+        seen.append(model)
+        if model == "openai/gpt-oss-120b":
+            return httpx.Response(429, headers={"retry-after": "30"}, json={"error": {"message": "rate limit"}})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "Yes boss."}}]})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    r = Replier("groq", None, groq_key="k", http=http, memory=Memory(Path(tempfile.mkdtemp()) / "m.json"))
+    assert asyncio.run(r.reply("hi")) == "Yes boss."
+    assert seen == ["openai/gpt-oss-120b", "llama-3.3-70b-versatile"]
+    # The limited model rests; the next turn goes straight to the fallback.
+    seen.clear()
+    asyncio.run(r.reply("again"))
+    assert seen == ["llama-3.3-70b-versatile"]
+
+
+def test_groq_all_limited_says_how_long():
+    import asyncio, httpx, tempfile
+    from pathlib import Path
+    from memory import Memory
+    from reply import Replier
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(lambda req: httpx.Response(429, text="Please try again in 2m5s.")))
+    r = Replier("groq", None, groq_key="k", http=http, memory=Memory(Path(tempfile.mkdtemp()) / "m.json"))
+    out = asyncio.run(r.reply("hi"))
+    assert "2 minutes" in out
