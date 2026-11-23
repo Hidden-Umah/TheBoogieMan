@@ -84,6 +84,7 @@ TheBoogieMan/
 │   │   │   ├── Scene.tsx       # three.js scene: eye, rings, voice ring, space, camera, bloom, devil palette
 │   │   │   ├── DataArcs.tsx    # fragmented radial data rings (wireframe cells + hot orange cells)
 │   │   │   ├── DotCore.tsx     # normal-mode core: 3D dot-matrix sphere that breathes / ripples / pulses
+│   │   │   ├── HudScreens.tsx  # curved side screens: cylinder panels around the viewer, head-turn with the mouse
 │   │   │   └── eyeShader.ts    # GLSL for the cyborg eyeball (iris, pupil / devil slit, sclera panels)
 │   │   ├── components/
 │   │   │   ├── BootScreen.tsx  # "Welcome to the Boogeyman" + loading, waits for the brain
@@ -92,9 +93,9 @@ TheBoogieMan/
 │   │   │   ├── LogPanel.tsx    # 03 System log card
 │   │   │   ├── InfoPanel.tsx   # 04 result card that swipes in and types out
 │   │   │   ├── Visor.tsx       # Devil mode: helmet visor, armour, contours, reticle, shutter
-│   │   │   ├── SideCards.tsx   # curved cards: 01 your voice, 02 his voice, 03 response, 04 memory
-│   │   │   ├── VoicePattern.tsx # live spectrum + loudness trace (canvas)
-│   │   │   ├── CurvedCard.tsx  # bent frame for the side cards
+│   │   ├── hud/
+│   │   │   ├── store.ts        # state the curved screens draw from (exchanges, facts, mode)
+│   │   │   └── draw.ts         # canvas drawing for each screen: voice patterns, response, memory
 │   │   │   ├── CommandBar.tsx  # the >_ input
 │   │   │   └── HudFrame.tsx    # corners, clock, link/latency/state
 │   │   └── lib/brain.ts      #   typed functions to talk to Rust

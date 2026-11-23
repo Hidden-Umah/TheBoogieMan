@@ -4,10 +4,11 @@ import Captions, { type VoiceState } from './components/Captions'
 import { AgentCard, SystemCard } from './components/Cards'
 import HudFrame from './components/HudFrame'
 import LogPanel, { type LogLevel, type LogLine } from './components/LogPanel'
-import { MemoryCard, ResponseCard, VoiceCards, type Exchange, type Fact } from './components/SideCards'
 import Visor from './components/Visor'
 import { setLevel, setSpectrum } from './lib/audio'
 import { brainStatus, onBrainMessage, onBrainStatus, sendToBrain } from './lib/brain'
+import { hud, type Exchange, type Fact } from './hud/store'
+import HudScreens from './three/HudScreens'
 import Scene from './three/Scene'
 import type { EyeState, Mode } from './types'
 
@@ -108,7 +109,7 @@ export default function App() {
           break
         }
         case 'voice.transcript':
-          setExchanges((xs) => [...xs.slice(-11), { id: exId.current++, you: String(p.text), him: '' }])
+          setExchanges((xs) => [...xs.slice(-11), { id: exId.current++, you: String(p.text), him: '', at: performance.now() }])
           setTurns((n) => n + 1)
           log('boss', String(p.text))
           break
@@ -116,8 +117,8 @@ export default function App() {
           setExchanges((xs) => {
             const last = xs[xs.length - 1]
             // Reply to a spoken turn fills it in; a greeting or typed reply gets its own entry.
-            if (last && !last.him) return [...xs.slice(0, -1), { ...last, him: String(p.text) }]
-            return [...xs.slice(-11), { id: exId.current++, you: '', him: String(p.text) }]
+            if (last && !last.him) return [...xs.slice(0, -1), { ...last, him: String(p.text), at: performance.now() }]
+            return [...xs.slice(-11), { id: exId.current++, you: '', him: String(p.text), at: performance.now() }]
           })
           setSpoken((n) => n + 1)
           log('ai', String(p.text))
@@ -174,6 +175,19 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [booted, log])
 
+  useEffect(() => {
+    hud.exchanges = exchanges
+    hud.facts = facts
+    hud.heard = turns
+    hud.spoken = spoken
+    hud.thinking = voice === 'thinking' || voice === 'transcribing'
+    hud.mode = mode
+    if (fresh && hud.fresh !== fresh) {
+      hud.fresh = fresh
+      hud.freshAt = performance.now()
+    }
+  }, [exchanges, facts, turns, spoken, voice, mode, fresh])
+
   const eyeState: EyeState = !connected && booted ? 'offline' : EYE_FOR[voice]
 
   return (
@@ -194,13 +208,7 @@ export default function App() {
             </>
           )}
           <Visor active={mode === 'devil'} armedAt={armedAt} />
-          <VoiceCards heard={turns} spoken={spoken} />
-          <div className="wing wing-right">
-            <div className="wing-inner">
-              <ResponseCard exchanges={exchanges} thinking={voice === 'thinking' || voice === 'transcribing'} />
-              <MemoryCard facts={facts} fresh={fresh} />
-            </div>
-          </div>
+          <HudScreens />
           <Captions you="" him="" state={connected ? voice : 'unavailable'} detail={connected ? detail : 'brain offline'} />
           <div className="keyhint">
             <kbd>CTRL</kbd>+<kbd>M</kbd> {muted ? 'UNMUTE' : 'MUTE'} &nbsp; <kbd>CTRL</kbd>+<kbd>D</kbd>{' '}
