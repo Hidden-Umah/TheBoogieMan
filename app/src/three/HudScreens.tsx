@@ -5,17 +5,21 @@ import { drawMemory, drawResponse, drawVoice, PALETTES } from '../hud/draw'
 import { hud } from '../hud/store'
 
 /**
- * The side screens: real curved panels on the inside wall of a cylinder, with the
- * camera standing at its centre. Like sitting inside a wraparound monitor:
- * the screens curve toward you and everything drawn on them bends with them.
- * Moving the mouse turns your head slightly toward the left or right screens.
+ * The side screens, laid out like one curved ultrawide monitor seen from the front.
+ * Panels are segments of a large cylinder; the camera sits well in front of the
+ * cylinder's centre (not at it), so the curve is gentle: the ends come slightly
+ * toward you, and everything drawn on the panels bends with the glass.
+ * Thin top and bottom edges run across the full width so it reads as one display.
+ * Moving the mouse turns your head a little toward the left or right.
  */
 
-const R = 5 // cylinder radius (camera at the centre)
-const INNER = THREE.MathUtils.degToRad(26) // angle of the inner edge from straight ahead
-const OUTER = THREE.MathUtils.degToRad(49) // angle of the outer edge
-const H = 1.72 // height of one screen
-const GAP = 0.2
+const R = 30 // radius of the curve (bigger = gentler)
+const ZC = 20 // cylinder centre sits this far behind the camera -> screen 10 away
+const INNER = THREE.MathUtils.degToRad(7.3) // inner edge, measured at the curve's centre
+const OUTER = THREE.MathUtils.degToRad(15.6) // outer edge
+const SPAN = THREE.MathUtils.degToRad(17) // half-width of the whole "monitor"
+const H = 3.7 // height of one screen
+const GAP = 0.36
 const TEX_W = 900
 const TEX_H = Math.round((TEX_W * H) / (R * (OUTER - INNER)))
 
@@ -69,7 +73,7 @@ function Screen({ side, row, draw, visible, delay }: { side: 'left' | 'right'; r
 
   const y = row === 0 ? (H + GAP) / 2 : -(H + GAP) / 2
   return (
-    <mesh geometry={geo} position={[0, y, 0]}>
+    <mesh geometry={geo} position={[0, y, ZC]}>
       <meshBasicMaterial ref={mat} map={tex} transparent opacity={0} side={THREE.BackSide} toneMapped={false} depthWrite={false} />
     </mesh>
   )
@@ -79,10 +83,44 @@ function Head() {
   useFrame(({ camera }, dt) => {
     const k = 1 - Math.exp(-dt * 3)
     camera.rotation.order = 'YXZ'
-    camera.rotation.y += (-mouse.x * 0.13 - camera.rotation.y) * k
-    camera.rotation.x += (mouse.y * 0.05 - camera.rotation.x) * k
+    camera.rotation.y += (-mouse.x * 0.06 - camera.rotation.y) * k
+    camera.rotation.x += (mouse.y * 0.03 - camera.rotation.x) * k
   })
   return null
+}
+
+/** The monitor's curved top and bottom edges, running across the full width. */
+function Bezel() {
+  const geo = useMemo(() => {
+    const pts: number[] = []
+    const cols: number[] = []
+    const yTop = H + GAP / 2 + 0.18
+    for (const y of [yTop, -yTop]) {
+      const n = 160
+      for (let i = 0; i < n; i++) {
+        for (const j of [i, i + 1]) {
+          const a = -SPAN + (2 * SPAN * j) / n
+          pts.push(-R * Math.sin(a), y, ZC - R * Math.cos(a))
+          // Fade out toward the ends.
+          const f = Math.pow(Math.min(1, (SPAN - Math.abs(a)) / (SPAN * 0.35)), 1.5)
+          cols.push(f, f, f)
+        }
+      }
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
+    g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3))
+    return g
+  }, [])
+  const mat = useRef<THREE.LineBasicMaterial>(null!)
+  useFrame(() => {
+    mat.current.color.set(hud.mode === 'devil' ? '#ff3a46' : '#eceae6')
+  })
+  return (
+    <lineSegments geometry={geo}>
+      <lineBasicMaterial ref={mat} vertexColors transparent opacity={0.28} toneMapped={false} />
+    </lineSegments>
+  )
 }
 
 const pal = () => PALETTES[hud.mode]
@@ -94,11 +132,12 @@ export default function HudScreens() {
     <div className="hud-screens">
       <Canvas
         dpr={[1, 2]}
-        camera={{ fov: 70, near: 0.1, far: 50, position: [0, 0, 0] }}
+        camera={{ fov: 60, near: 0.1, far: 100, position: [0, 0, 0] }}
         gl={{ alpha: true, antialias: true }}
         onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
       >
         <Head />
+        <Bezel />
         <Screen side="left" row={0} delay={200} visible={normalOnly} draw={(c, w, h) => drawVoice(c, w, h, pal(), 'mic')} />
         <Screen side="left" row={1} delay={400} visible={normalOnly} draw={(c, w, h) => drawVoice(c, w, h, pal(), 'voice')} />
         <Screen side="right" row={0} delay={300} visible={always} draw={(c, w, h) => drawResponse(c, w, h, pal())} />
