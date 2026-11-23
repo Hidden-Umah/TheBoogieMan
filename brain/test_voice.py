@@ -128,3 +128,39 @@ def test_elevenlabs_requests():
     assert b"scribe_v2" in stt.content
     tts = seen["/v1/text-to-speech/voice123/stream"]
     assert tts.url.params["output_format"] == "pcm_24000"
+
+
+def test_groq_reply_and_errors():
+    import json
+
+    from reply import Replier
+
+    calls = []
+
+    def handler(request: httpx.Request):
+        calls.append(request)
+        body = json.loads(request.content)
+        if body["messages"][-1]["content"] == "limit":
+            return httpx.Response(429, json={"error": "rate"})
+        return httpx.Response(200, json={"choices": [{"message": {"content": " Hey, boss. "}}]})
+
+    r = Replier("auto", None, groq_key="gsk_test", http=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    assert r.provider == "groq" and r.model == "openai/gpt-oss-120b"
+    assert asyncio.run(r.reply("hello")) == "Hey, boss."
+    req = calls[0]
+    assert str(req.url) == "https://api.groq.com/openai/v1/chat/completions"
+    assert req.headers["authorization"] == "Bearer gsk_test"
+    body = json.loads(req.content)
+    assert body["messages"][0]["role"] == "system" and body["reasoning_effort"] == "low"
+    # Rate limit gives a spoken message and doesn't poison history.
+    assert "limit" in asyncio.run(r.reply("limit")).lower()
+    assert len(r.history) == 2
+
+
+def test_provider_resolution():
+    from reply import resolve_provider
+
+    assert resolve_provider("auto", None, None, None) == "none"
+    assert resolve_provider("auto", "a", "g", None) == "anthropic"
+    assert resolve_provider("auto", None, "g", None) == "groq"
+    assert resolve_provider("groq", None, None, None) == "none"

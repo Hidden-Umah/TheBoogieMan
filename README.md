@@ -51,7 +51,12 @@ cp brain/.env.example brain/.env
 ```
 
 - `ELEVENLABS_API_KEY`: lets him hear you and talk back. Required for voice.
-- `ANTHROPIC_API_KEY`: his brain (Claude). Without it, he only has a few built-in lines.
+- His brain, at least one of:
+  - `GROQ_API_KEY`: free tier at console.groq.com, fast. The default.
+  - `ANTHROPIC_API_KEY`: Claude. Used first if it's set.
+  - Any OpenAI-compatible API: `LLM_PROVIDER=openai` with `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL`.
+
+  With no brain key he only has a few built-in lines. The terminal prints which brain he's using (`brain: groq:openai/gpt-oss-120b`).
 
 `brain/.env` is gitignored, and keys never reach the frontend.
 
