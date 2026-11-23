@@ -31,4 +31,23 @@ forwarded to React as the Tauri event `brain-message`. Connection changes arrive
 | `brain.reply`  | ← brain         | `{ "text", "chars", "python", "at" }`       |
 | `error`        | ← brain         | `{ "message": string }`                     |
 
+## Voice
+
+Requests (React → brain), each answered with `voice.ack`:
+
+| type          | payload               | does                                             |
+|---------------|-----------------------|--------------------------------------------------|
+| `voice.greet` | `{}`                  | Speaks the greeting once; returns `capabilities` |
+| `voice.mute`  | `{ "muted": bool }`   | Mutes / unmutes the mic                          |
+| `voice.status`| `{}`                  | Returns `muted` and `capabilities`               |
+
+Events (brain → React, empty `id`, arrive as the `brain-message` Tauri event):
+
+| type               | payload                                                                                   |
+|--------------------|-------------------------------------------------------------------------------------------|
+| `voice.state`      | `{ "state": idle/listening/hearing/transcribing/thinking/speaking/muted/error, "detail"? }` |
+| `voice.level`      | `{ "source": "mic" / "voice", "level": 0..1 }` (~20/s while active)                       |
+| `voice.transcript` | `{ "text" }`: what the boss said                                                          |
+| `voice.reply`      | `{ "text" }`: what he's saying back                                                       |
+
 Phase 1 adds `agent.delta`, `agent.tool_call`, `agent.done`, `agent.error`.

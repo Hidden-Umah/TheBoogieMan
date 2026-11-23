@@ -26,7 +26,7 @@ Every message uses one shape, `{ id, type, payload }`. See [`shared/messages.md`
 sudo apt update
 sudo apt install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
   libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
-  python3 python3-venv
+  python3 python3-venv libportaudio2
 ```
 
 **2. Rust**
@@ -43,13 +43,30 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 make setup
 ```
 
+**5. Keys (for voice)**
+
+```bash
+cp brain/.env.example brain/.env
+# then open brain/.env and paste your keys
+```
+
+- `ELEVENLABS_API_KEY`: lets him hear you and talk back. Required for voice.
+- `ANTHROPIC_API_KEY`: his brain (Claude). Without it, he only has a few built-in lines.
+
+`brain/.env` is gitignored, and keys never reach the frontend.
+
 ## Run
 
 ```bash
 make dev
 ```
 
-The window opens, Rust starts the Python brain on a free local port, and the status pill turns green once they're connected. Type something and the reply comes back from Python.
+The window opens, Rust starts the Python brain, and after the boot screen he greets you out loud. Then just talk: say "hello" and he answers.
+
+- `Ctrl+M`: mute / unmute the mic
+- `Ctrl+D`: devil mode
+
+The status under the core tells you what he's doing: LISTENING, HEARING YOU, THINKING, SPEAKING. If it says VOICE OFFLINE, the reason is shown next to it (usually a missing key or no microphone).
 
 The first run compiles Rust and takes a few minutes. After that it's quick.
 

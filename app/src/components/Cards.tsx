@@ -5,6 +5,7 @@ import { Card, DotBars, DotRing, DotWave } from './dots'
 
 const STATE_TEXT: Record<EyeState, string> = {
   idle: 'STANDBY',
+  listening: 'LISTENING',
   thinking: 'THINKING...',
   speaking: 'SPEAKING',
   offline: 'NO SIGNAL',
@@ -21,7 +22,7 @@ export function AgentCard({
   latency: number | null
   connected: boolean
 }) {
-  const active = state === 'thinking' ? 1 : state === 'speaking' ? 0.7 : state === 'offline' ? 0 : 0.12
+  const active = state === 'thinking' ? 1 : state === 'speaking' ? 0.7 : state === 'listening' ? 0.4 : state === 'offline' ? 0 : 0.12
   return (
     <Card n="01" title="AGENT STATUS">
       <div className={`agent-state st-${state}`}>{STATE_TEXT[state]}</div>
