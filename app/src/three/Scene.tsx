@@ -7,6 +7,7 @@ import { audio } from '../lib/audio'
 import type { EyeState, Mode } from '../types'
 import DataArcs from './DataArcs'
 import DotCore from './DotCore'
+import VideoBackground from './VideoBackground'
 import { eyeFragment, eyeVertex } from './eyeShader'
 
 /** Palettes. Normal = warm orange-red accent on white; Devil = blood red everything. */
@@ -310,11 +311,27 @@ function CameraRig({ booted }: { booted: boolean }) {
   )
 }
 
+const devilRefs = new WeakMap<object, { current: number }>()
+/** A ref-like view of live.devil so the background can tint itself. */
+function devilRef(live: React.RefObject<Live>) {
+  let r = devilRefs.get(live)
+  if (!r) {
+    r = {
+      get current() {
+        return live.current.devil
+      },
+    }
+    devilRefs.set(live, r)
+  }
+  return r as React.RefObject<number>
+}
+
 function Rig({ state, mode, booted }: { state: EyeState; mode: Mode; booted: boolean }) {
   const live = useLive(state, mode)
   return (
     <>
       <CameraRig booted={booted} />
+      <VideoBackground devil={devilRef(live)} />
       <Space live={live} />
       <DotCore live={live} mouse={mouse} />
       <Eyeball live={live} />

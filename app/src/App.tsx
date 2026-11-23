@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import BootScreen from './components/BootScreen'
 import Captions, { type VoiceState } from './components/Captions'
@@ -47,6 +48,7 @@ export default function App() {
   const [facts, setFacts] = useState<Fact[]>([])
   const [fresh, setFresh] = useState<string | null>(null)
   const [spoken, setSpoken] = useState(0)
+  const [shutting, setShutting] = useState(false)
   const factIds = useRef<Set<string>>(new Set())
   const exId = useRef(0)
   const [mode, setMode] = useState<Mode>('normal')
@@ -100,6 +102,12 @@ export default function App() {
           break
         case 'memory.updated':
           applyMemory(p as { facts?: Fact[] })
+          break
+        case 'app.shutdown':
+          // He has already said goodbye. Play the power-down, then close the app.
+          setShutting(true)
+          log('err', 'SHUTDOWN')
+          window.setTimeout(() => invoke('quit_app').catch(() => window.close()), 2600)
           break
         case 'voice.state': {
           const s = String(p.state) as VoiceState
@@ -163,6 +171,10 @@ export default function App() {
         setMode(next)
         if (next === 'devil') setArmedAt(Date.now())
         log(next === 'devil' ? 'err' : 'ok', next === 'devil' ? 'DEVIL MODE ENGAGED' : 'Devil mode disengaged')
+      } else if (k === 'b') {
+        e.preventDefault()
+        hud.bg = !hud.bg
+        log('sys', `Background video ${hud.bg ? 'on' : 'off'}`)
       } else if (k === 'm') {
         e.preventDefault()
         const next = !mutedRef.current
@@ -193,6 +205,12 @@ export default function App() {
   return (
     <div className={`app mode-${mode}`}>
       <Scene state={eyeState} mode={mode} booted={booted} />
+      {shutting && (
+        <div className="shutdown">
+          <div className="shutdown-line" />
+          <div className="shutdown-text">SHUTTING DOWN</div>
+        </div>
+      )}
       {!booted ? (
         <BootScreen connected={connected} onDone={() => setBooted(true)} />
       ) : (
@@ -211,7 +229,7 @@ export default function App() {
           <HudScreens />
           <Captions you="" him="" state={connected ? voice : 'unavailable'} detail={connected ? detail : 'brain offline'} />
           <div className="keyhint">
-            <kbd>CTRL</kbd>+<kbd>M</kbd> {muted ? 'UNMUTE' : 'MUTE'} &nbsp; <kbd>CTRL</kbd>+<kbd>D</kbd>{' '}
+            <kbd>CTRL</kbd>+<kbd>M</kbd> {muted ? 'UNMUTE' : 'MUTE'} &nbsp; <kbd>CTRL</kbd>+<kbd>B</kbd> BACKGROUND &nbsp; <kbd>CTRL</kbd>+<kbd>D</kbd>{' '}
             {mode === 'devil' ? 'EXIT DEVIL MODE' : 'DEVIL MODE'}
           </div>
         </div>

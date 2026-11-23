@@ -259,3 +259,13 @@ kbd { font-family: var(--mono); border: 1px solid var(--line-strong); border-rad
 /* Status chip sits under the core now that text lives on the right. */
 .captions { bottom: 28px; }
 
+
+/* ───────── Shutdown ───────── */
+/* Old-CRT power-off: the screen collapses to a line, the line to a dot, then black. */
+.shutdown { position: absolute; inset: 0; z-index: 50; pointer-events: all; display: grid; place-items: center; animation: sdDark 2.6s ease-in both; }
+@keyframes sdDark { 0% { background: rgba(0, 0, 0, 0); } 35% { background: rgba(0, 0, 0, 0.85); } 100% { background: #000; } }
+.shutdown-line { position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: var(--fg); box-shadow: 0 0 24px var(--fg), 0 0 60px var(--accent); transform-origin: center; animation: sdLine 2.6s cubic-bezier(0.7, 0, 0.3, 1) both; }
+@keyframes sdLine { 0%, 30% { transform: scaleX(1) scaleY(0); opacity: 0; } 42% { transform: scaleX(1) scaleY(1); opacity: 1; } 70% { transform: scaleX(0.002) scaleY(1); opacity: 1; } 85% { transform: scaleX(0.002) scaleY(3); opacity: 1; } 100% { transform: scaleX(0) scaleY(0); opacity: 0; } }
+.shutdown-text { font-family: var(--dot); font-weight: 800; font-size: clamp(28px, 4vw, 52px); letter-spacing: 0.2em; color: var(--fg); text-shadow: 0 0 18px var(--accent); transform: translateY(-60px); animation: sdText 2.6s steps(1) both; }
+@keyframes sdText { 0%, 4% { opacity: 0; } 6%, 12%, 20%, 30% { opacity: 1; } 9%, 16% { opacity: 0.2; } 36%, 100% { opacity: 0; } }
+.mode-devil .shutdown-line { background: #ff1030; box-shadow: 0 0 30px #ff1030; }

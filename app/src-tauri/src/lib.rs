@@ -21,6 +21,13 @@ async fn send_to_brain(brain: State<'_, Brain>, message: Message) -> Result<Mess
     brain.request(message, Duration::from_secs(30)).await
 }
 
+/// Closes the app. The exit handler (and PR_SET_PDEATHSIG) takes the brain down with it.
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    log::info!("shutdown requested by the boss");
+    app.exit(0);
+}
+
 #[tauri::command]
 fn brain_status(brain: State<'_, Brain>) -> bool {
     brain.is_connected()
@@ -43,7 +50,7 @@ pub fn run() {
             app.manage(stats::Stats::new());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![send_to_brain, brain_status, stats::system_stats])
+        .invoke_handler(tauri::generate_handler![send_to_brain, brain_status, quit_app, stats::system_stats])
         .build(tauri::generate_context!())
         .expect("error while building the Boogeyman")
         .run(|app, event| {
