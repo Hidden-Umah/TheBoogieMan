@@ -1,6 +1,7 @@
 mod brain;
 mod message;
 mod sidecar;
+mod stats;
 
 use std::sync::Mutex;
 use std::time::Duration;
@@ -39,9 +40,10 @@ pub fn run() {
                 .map_err(|e| format!("could not start the Python brain: {e}"))?;
             app.manage(Sidecar(Mutex::new(Some(child))));
             app.manage(Brain::start(app.handle().clone(), port));
+            app.manage(stats::Stats::new());
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![send_to_brain, brain_status])
+        .invoke_handler(tauri::generate_handler![send_to_brain, brain_status, stats::system_stats])
         .build(tauri::generate_context!())
         .expect("error while building the Boogeyman")
         .run(|app, event| {

@@ -19,6 +19,7 @@ export const eyeFragment = /* glsl */ `
   uniform float uPupil;     // pupil radius in iris units (0..1)
   uniform float uEnergy;    // 0 idle .. 1 intense
   uniform vec3  uAccent;
+  uniform float uSlit;      // 0 round pupil .. 1 vertical slit (devil mode)
   varying vec3 vPos;
   varying vec3 vNormalV;
   varying vec3 vViewDir;
@@ -61,9 +62,12 @@ export const eyeFragment = /* glsl */ `
     iris = mix(iris, vec3(0.0), smoothstep(0.86, 1.0, r) * 0.9);
     vec3 col = mix(iris, sclera, smoothstep(0.99, 1.03, r));
 
-    // Pupil + its hot rim
-    col = mix(col, vec3(0.0), smoothstep(uPupil, uPupil - 0.025, r));
-    col += uAccent * exp(-pow((r - uPupil) * 70.0, 2.0)) * 2.2;
+    // Pupil + its hot rim. In devil mode it stretches into a vertical slit.
+    vec2 q = p.xy / 0.581;  // sin(0.62): iris plane coordinates, matches r near the pole
+    float d = length(vec2(q.x * (1.0 + uSlit * 4.5), q.y * (1.0 - uSlit * 0.25)));
+    d = mix(r, d, step(0.0, p.z));
+    col = mix(col, vec3(0.0), smoothstep(uPupil, uPupil - 0.025, d));
+    col += uAccent * exp(-pow((d - uPupil) * 70.0, 2.0)) * (2.2 + uSlit * 1.5);
 
     // Cool fresnel rim so the ball reads as 3D against black space
     float fres = pow(1.0 - max(dot(vNormalV, vViewDir), 0.0), 3.5);

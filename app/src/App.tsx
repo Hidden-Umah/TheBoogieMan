@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import BootScreen from './components/BootScreen'
+import { AgentCard, SystemCard } from './components/Cards'
 import CommandBar from './components/CommandBar'
 import HudFrame from './components/HudFrame'
 import InfoPanel, { type Info } from './components/InfoPanel'
 import LogPanel, { type LogLevel, type LogLine } from './components/LogPanel'
-import Scene from './three/Scene'
-import type { EyeState } from './types'
+import Visor from './components/Visor'
 import { brainStatus, onBrainStatus, sendToBrain, type BrainReply } from './lib/brain'
+import Scene from './three/Scene'
+import type { EyeState, Mode } from './types'
 
 // Flavour lines that tick through the log while idle.
 const AMBIENT: [LogLevel, string][] = [
@@ -18,8 +20,6 @@ const AMBIENT: [LogLevel, string][] = [
   ['sys', 'Signal-to-noise ratio 42.7 dB'],
   ['sys', 'Watching. Always watching.'],
   ['ok', 'Integrity check passed'],
-  ['sys', 'Cooling subsystems at 31°C'],
-  ['warn', 'Unknown process pinged port 1420 · ignored'],
   ['sys', 'Awaiting instructions from the boss'],
 ]
 
@@ -34,10 +34,14 @@ export default function App() {
   const [booted, setBooted] = useState(false)
   const [connected, setConnected] = useState(false)
   const [eye, setEye] = useState<EyeState>('idle')
+  const [mode, setMode] = useState<Mode>('normal')
+  const [armedAt, setArmedAt] = useState(0)
+  const modeRef = useRef<Mode>('normal')
   const [busy, setBusy] = useState(false)
   const [logs, setLogs] = useState<LogLine[]>([])
   const [info, setInfo] = useState<Info | null>(null)
   const [latency, setLatency] = useState<number | null>(null)
+  const [commands, setCommands] = useState(0)
   const startedAt = useRef(Date.now())
   const logId = useRef(0)
   const speakTimer = useRef<number>(undefined)
@@ -66,8 +70,26 @@ export default function App() {
     const id = setInterval(() => {
       const [lv, text] = AMBIENT[i++ % AMBIENT.length]
       log(lv, text)
-    }, 2600)
+    }, 2800)
     return () => clearInterval(id)
+  }, [booted, log])
+
+  // Ctrl+D toggles Devil Mode.
+  useEffect(() => {
+    if (!booted) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault()
+        if (e.repeat) return
+        const next = modeRef.current === 'devil' ? 'normal' : 'devil'
+        modeRef.current = next
+        setMode(next)
+        if (next === 'devil') setArmedAt(Date.now())
+        log(next === 'devil' ? 'err' : 'ok', next === 'devil' ? 'DEVIL MODE ENGAGED' : 'Devil mode disengaged')
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [booted, log])
 
   const eyeState: EyeState = !connected && booted ? 'offline' : eye
@@ -75,6 +97,7 @@ export default function App() {
   async function command(text: string) {
     setBusy(true)
     setEye('thinking')
+    setCommands((n) => n + 1)
     log('boss', text)
     log('sys', 'Routing command → Rust core → neural cortex')
     const t0 = performance.now()
@@ -83,8 +106,7 @@ export default function App() {
       const ms = Math.round(performance.now() - t0)
       setLatency(ms)
       if (reply.type === 'error') {
-        const msg = String((reply.payload as unknown as { message: string }).message)
-        log('err', msg)
+        log('err', String((reply.payload as unknown as { message: string }).message))
         setEye('idle')
         return
       }
@@ -93,10 +115,10 @@ export default function App() {
       log('ok', `Response received · ${ms}ms · Python ${p.python}`)
       setInfo({
         key: Date.now(),
-        title: 'INCOMING TRANSMISSION',
+        title: mode === 'devil' ? 'INTEL' : 'TRANSMISSION',
         query: text,
         body: p.text,
-        meta: [`LATENCY ${ms}MS`, `PYTHON ${p.python}`, `${p.chars} CHARS`],
+        meta: [`${ms}MS`, `PY ${p.python}`, `${p.chars} CHARS`],
       })
       // "Speak" for a time proportional to the reply. Real audio arrives in Phase 2.
       setEye('speaking')
@@ -111,16 +133,24 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      <Scene state={eyeState} booted={booted} />
+    <div className={`app mode-${mode}`}>
+      <Scene state={eyeState} mode={mode} booted={booted} />
       {!booted ? (
         <BootScreen connected={connected} onDone={() => setBooted(true)} />
       ) : (
         <div className="hud">
-          <HudFrame state={eyeState} connected={connected} latency={latency} startedAt={startedAt.current} />
-          <LogPanel lines={logs} />
+          <HudFrame connected={connected} startedAt={startedAt.current} />
+          <div className="col-left">
+            <AgentCard state={eyeState} commands={commands} latency={latency} connected={connected} />
+            <SystemCard />
+            <LogPanel lines={logs} />
+          </div>
           <InfoPanel info={info} onClose={() => setInfo(null)} />
-          <CommandBar disabled={!connected} busy={busy} onSubmit={command} />
+          <Visor active={mode === 'devil'} armedAt={armedAt} />
+          <CommandBar disabled={!connected} busy={busy} devil={mode === 'devil'} onSubmit={command} />
+          <div className="keyhint">
+            <kbd>CTRL</kbd>+<kbd>D</kbd> {mode === 'devil' ? 'EXIT DEVIL MODE' : 'DEVIL MODE'}
+          </div>
         </div>
       )}
     </div>
