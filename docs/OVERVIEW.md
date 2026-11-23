@@ -84,7 +84,7 @@ TheBoogieMan/
 │   │   │   ├── Scene.tsx       # three.js scene: eye, rings, voice ring, space, camera, bloom, devil palette
 │   │   │   ├── DataArcs.tsx    # fragmented radial data rings (wireframe cells + hot orange cells)
 │   │   │   ├── DotCore.tsx     # normal-mode core: 3D dot-matrix sphere that breathes / ripples / pulses
-│   │   │   ├── HudScreens.tsx  # curved side screens: cylinder panels around the viewer, head-turn with the mouse
+│   │   │   ├── HudScreens.tsx  # curved side screens: one gentle ultrawide-monitor curve, head-turn with the mouse
 │   │   │   └── eyeShader.ts    # GLSL for the cyborg eyeball (iris, pupil / devil slit, sclera panels)
 │   │   ├── components/
 │   │   │   ├── BootScreen.tsx  # "Welcome to the Boogeyman" + loading, waits for the brain
