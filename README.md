@@ -77,13 +77,18 @@ The window opens, Rust starts the Python brain, and after the boot screen he gre
 - `Ctrl+M`: mute / unmute the mic
 - `Ctrl+B`: next background
 - `Ctrl+D`: devil mode
+- `Ctrl+H`: the commands card (everything you can say). Esc closes it.
 
 **Voice commands** (instant, work even without a brain key):
 - "Shut down" / "Shut it down" / "Go to sleep": he asks to confirm. "Yes" and he's gone, "no" and he stays.
 - "Shut down **now**" / "right now" / "immediately": no questions, he shuts down.
-- "Let's get to work": the core slides away and the workspace opens. "Back to normal" returns.
+- "Let's get to work": the core slides away and the workspace opens. "Back to the normal screen" / "exit work mode" / "go home" returns.
+- "What can you do?" / "show me the commands": opens the commands card.
+- "Clear our conversation": wipes chat history (saved facts stay). Do this once if he ever insists he "can't" do something he can.
 - "Change / switch / next background", "sea background", "space background", "background off".
 - "Research ...", "look up ...", "search for ...": he researches the web live in the workspace. Asking naturally works too ("what's the latest news in Ghana?").
+
+The model also has these as **tools** (`shutdown`, `switch_screen`, `set_background`, `show_commands`, `clear_conversation`, `research`), so any phrasing works, e.g. "abeg close yourself" or "take me back home". The terminal logs `heard:`, `command:` and `tool:` lines for every turn, which is the first place to look if something doesn't fire.
 
 **Backgrounds**: `nebula` (an original loop from `tools/gen_background.py`) and `sea` (the underwater shipwreck). Drop `custom.mp4` or `custom.webm` into `app/public/bg/` and it joins the list. `.mp4` playback on Ubuntu needs `sudo apt install gstreamer1.0-libav` (the sea also ships as `.webm`, which plays without it).
 
