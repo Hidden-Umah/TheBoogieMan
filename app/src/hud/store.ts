@@ -15,4 +15,22 @@ export const hud = {
   spoken: 0,
   mode: 'normal' as Mode,
   bg: true, // background video on/off (Ctrl+B)
+  bgName: savedBg(),
+  bgMissing: null as string | null,
+}
+
+function savedBg(): string {
+  try {
+    return localStorage.getItem('bg') || 'nebula'
+  } catch {
+    return 'nebula'
+  }
+}
+
+export function saveBg(name: string) {
+  try {
+    localStorage.setItem('bg', name)
+  } catch {
+    /* storage unavailable: fine, it just won't be remembered */
+  }
 }

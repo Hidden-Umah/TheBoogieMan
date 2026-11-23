@@ -15,6 +15,7 @@ import asyncio
 import logging
 import os
 import platform
+import re
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -26,6 +27,7 @@ import config
 from commands import Commands
 from memory import Memory
 from reply import Replier
+from research import Research
 from voice import VoiceLoop
 
 log = logging.getLogger("brain")
@@ -80,14 +82,81 @@ commands = Commands()
 state: dict[str, Any] = {"greeted": False, "capabilities": {}, "action": None}
 
 
+RESEARCH_CMD = re.compile(r"^(?:please\s+)?(?:research|look\s+up|search\s+(?:for|the\s+web\s+for)|find\s+out\s+(?:about)?|google)\s+(.+)", re.I)
+
+
+async def ui_action(action: str | None) -> str | None:
+    """Apply UI actions right away; return anything that must wait until after speaking."""
+    if action in ("work", "normal"):
+        await hub.emit("ui.mode", {"mode": action})
+        return None
+    if action and action.startswith("bg:"):
+        await hub.emit("ui.background", {"cmd": action[3:]})
+        return None
+    return action
+
+
+async def run_research(query: str) -> str:
+    await hub.emit("ui.mode", {"mode": "work"})
+    agent = Research(hub.emit, replier.complete if replier.online else None)
+    result = await agent.run(query)
+    lines = [f"Summary: {result['summary']}"] + [f"- {f}" for f in result["findings"]]
+    return "\n".join(lines)
+
+
 async def think(text: str) -> str:
     """Built-in commands first (instant, offline), then the LLM."""
     hit = commands.handle(text)
     if hit:
-        out, state["action"] = hit
-        log.info("command: %r -> %s", text, state["action"] or "reply")
+        out, action = hit
+        state["action"] = await ui_action(action)
+        log.info("command: %r -> %s", text, action or "reply")
         return out
+    m = RESEARCH_CMD.match(text.strip())
+    if m:  # "research X" goes straight to the agent: faster, and works without tool-calling
+        await hub.emit("voice.state", {"state": "thinking"})
+        result = await run_research(m.group(1).strip(" .?!"))
+        return result.split("\n", 1)[0].removeprefix("Summary: ")
     return await replier.reply(text)
+
+
+async def tool_shutdown(args: dict[str, Any]) -> str:
+    if args.get("now"):
+        state["action"] = "shutdown"
+        return "Shutdown scheduled right after your reply. Say a very short goodbye."
+    return f"Ask exactly this and nothing else: {commands.ask_shutdown()}"
+
+
+async def tool_research(args: dict[str, Any]) -> str:
+    query = str(args.get("query", "")).strip()
+    if not query:
+        return "Error: empty query."
+    return await run_research(query)
+
+
+replier.add_tool(
+    {
+        "name": "shutdown",
+        "description": "Shut yourself (the Boogeyman app) down. now=true when he clearly wants it immediately; "
+        "otherwise now=false, which asks him to confirm first.",
+        "parameters": {"type": "object", "properties": {"now": {"type": "boolean"}}, "required": ["now"]},
+    },
+    tool_shutdown,
+)
+replier.add_tool(
+    {
+        "name": "research",
+        "description": "Search the web and read sources to answer something current or factual "
+        "(news, prices, events, people, anything to look up). Shows the work live on the boss's screen. "
+        "Returns a summary and findings with [n] citations.",
+        "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string", "description": "What to research, in plain words."}},
+            "required": ["query"],
+        },
+    },
+    tool_research,
+)
 
 
 async def after_turn() -> None:

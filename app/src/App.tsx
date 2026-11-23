@@ -8,7 +8,9 @@ import LogPanel, { type LogLevel, type LogLine } from './components/LogPanel'
 import Visor from './components/Visor'
 import { setLevel, setSpectrum } from './lib/audio'
 import { brainStatus, onBrainMessage, onBrainStatus, sendToBrain } from './lib/brain'
-import { hud, type Exchange, type Fact } from './hud/store'
+import { hud, saveBg, type Exchange, type Fact } from './hud/store'
+import WorkMode from './components/WorkMode'
+import { BACKGROUNDS } from './three/VideoBackground'
 import HudScreens from './three/HudScreens'
 import Scene from './three/Scene'
 import type { EyeState, Mode } from './types'
@@ -49,6 +51,9 @@ export default function App() {
   const [fresh, setFresh] = useState<string | null>(null)
   const [spoken, setSpoken] = useState(0)
   const [shutting, setShutting] = useState(false)
+  const [work, setWork] = useState(false)
+  const [lastReply, setLastReply] = useState('')
+  const customBg = useRef(false)
   const factIds = useRef<Set<string>>(new Set())
   const exId = useRef(0)
   const [mode, setMode] = useState<Mode>('normal')
@@ -71,6 +76,31 @@ export default function App() {
     }
     factIds.current = new Set(list.map((f) => f.id))
     setFacts(list)
+  }, [])
+
+  // Background switching by voice: next / sea / nebula / custom / on / off.
+  const applyBackground = useCallback((cmd: string) => {
+    const names = BACKGROUNDS.map((b) => b.name).filter((n) => n !== 'custom' || customBg.current)
+    if (cmd === 'off') hud.bg = false
+    else if (cmd === 'on') hud.bg = true
+    else {
+      const name = cmd === 'next' ? names[(names.indexOf(hud.bgName) + 1) % names.length] : cmd
+      if (names.includes(name)) {
+        hud.bgName = name
+        hud.bg = true
+        saveBg(name)
+      }
+    }
+  }, [])
+
+  // Is there a custom background dropped into app/public/bg?
+  useEffect(() => {
+    for (const src of ['/bg/custom.webm', '/bg/custom.mp4'])
+      fetch(src, { method: 'HEAD' })
+        .then((r) => {
+          if (r.ok && (r.headers.get('content-type') || '').startsWith('video')) customBg.current = true
+        })
+        .catch(() => {})
   }, [])
 
   const log = useCallback((level: LogLevel, text: string) => {
@@ -103,6 +133,13 @@ export default function App() {
         case 'memory.updated':
           applyMemory(p as { facts?: Fact[] })
           break
+        case 'ui.mode':
+          setWork(p.mode === 'work')
+          log('sys', p.mode === 'work' ? 'Workspace open' : 'Back to the core')
+          break
+        case 'ui.background':
+          applyBackground(String(p.cmd))
+          break
         case 'app.shutdown':
           // He has already said goodbye. Play the power-down, then close the app.
           setShutting(true)
@@ -129,6 +166,7 @@ export default function App() {
             return [...xs.slice(-11), { id: exId.current++, you: '', him: String(p.text), at: performance.now() }]
           })
           setSpoken((n) => n + 1)
+          setLastReply(String(p.text))
           log('ai', String(p.text))
           break
       }
@@ -136,7 +174,7 @@ export default function App() {
     return () => {
       un.then((fn) => fn())
     }
-  }, [log, applyMemory])
+  }, [log, applyMemory, applyBackground])
 
   // Once the HUD is up, ask him to greet the boss, and learn what voice pieces are available.
   useEffect(() => {
@@ -173,8 +211,10 @@ export default function App() {
         log(next === 'devil' ? 'err' : 'ok', next === 'devil' ? 'DEVIL MODE ENGAGED' : 'Devil mode disengaged')
       } else if (k === 'b') {
         e.preventDefault()
-        hud.bg = !hud.bg
-        log('sys', `Background video ${hud.bg ? 'on' : 'off'}`)
+        // Ctrl+B: next background; Ctrl+Shift... reserved. Off after the last one, then back to the first.
+        if (!hud.bg) applyBackground('on')
+        else applyBackground('next')
+        log('sys', `Background: ${hud.bg ? hud.bgName : 'off'}`)
       } else if (k === 'm') {
         e.preventDefault()
         const next = !mutedRef.current
@@ -203,8 +243,8 @@ export default function App() {
   const eyeState: EyeState = !connected && booted ? 'offline' : EYE_FOR[voice]
 
   return (
-    <div className={`app mode-${mode}`}>
-      <Scene state={eyeState} mode={mode} booted={booted} />
+    <div className={`app mode-${mode} ${work ? 'work-on' : ''}`}>
+      <Scene state={eyeState} mode={mode} booted={booted} work={work} />
       {shutting && (
         <div className="shutdown">
           <div className="shutdown-line" />
@@ -227,9 +267,10 @@ export default function App() {
           )}
           <Visor active={mode === 'devil'} armedAt={armedAt} />
           <HudScreens />
+          <WorkMode active={work} lastReply={lastReply} listening={voice === 'hearing' ? 'HEARING YOU' : voice === 'muted' ? 'MIC MUTED' : 'LISTENING'} />
           <Captions you="" him="" state={connected ? voice : 'unavailable'} detail={connected ? detail : 'brain offline'} />
           <div className="keyhint">
-            <kbd>CTRL</kbd>+<kbd>M</kbd> {muted ? 'UNMUTE' : 'MUTE'} &nbsp; <kbd>CTRL</kbd>+<kbd>B</kbd> BACKGROUND &nbsp; <kbd>CTRL</kbd>+<kbd>D</kbd>{' '}
+            <kbd>CTRL</kbd>+<kbd>M</kbd> {muted ? 'UNMUTE' : 'MUTE'} &nbsp; <kbd>CTRL</kbd>+<kbd>B</kbd> NEXT BACKGROUND &nbsp; <kbd>CTRL</kbd>+<kbd>D</kbd>{' '}
             {mode === 'devil' ? 'EXIT DEVIL MODE' : 'DEVIL MODE'}
           </div>
         </div>

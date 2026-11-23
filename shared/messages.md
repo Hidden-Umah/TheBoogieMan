@@ -50,6 +50,9 @@ Events (brain → React, empty `id`, arrive as the `brain-message` Tauri event):
 | `voice.transcript` | `{ "text" }`: what the boss said                                                          |
 | `voice.reply`      | `{ "text" }`: what he's saying back                                                       |
 | `voice.spectrum`   | `{ "source": "mic" / "voice", "bands": [24 × 0..1] }`: log-spaced 80 Hz–8 kHz             |
+| `ui.mode`          | `{ "mode": "work" / "normal" }`                                                           |
+| `ui.background`    | `{ "cmd": "next" / "sea" / "nebula" / "off" / "on" }`                                     |
+| `task.*`           | research progress: start, step, queries, source, reading, metric, finding, done (see `brain/research.py`) |
 | `app.shutdown`     | `{}`: he has said goodbye; the UI powers down and quits                                    |
 | `memory.updated`   | `{ "facts": [{id, text, at}], "turns" }`                                                  |
 

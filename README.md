@@ -75,14 +75,19 @@ make dev
 The window opens, Rust starts the Python brain, and after the boot screen he greets you out loud. Then just talk: say "hello" and he answers.
 
 - `Ctrl+M`: mute / unmute the mic
-- `Ctrl+B`: background video on / off
+- `Ctrl+B`: next background
 - `Ctrl+D`: devil mode
 
 **Voice commands** (instant, work even without a brain key):
-- "Shut down" / "Can you shut down?": he asks to confirm. "Yes" and he's gone, "no" and he stays.
+- "Shut down" / "Shut it down" / "Go to sleep": he asks to confirm. "Yes" and he's gone, "no" and he stays.
 - "Shut down **now**" / "right now" / "immediately": no questions, he shuts down.
+- "Let's get to work": the core slides away and the workspace opens. "Back to normal" returns.
+- "Change / switch / next background", "sea background", "space background", "background off".
+- "Research ...", "look up ...", "search for ...": he researches the web live in the workspace. Asking naturally works too ("what's the latest news in Ghana?").
 
-**Background video**: the default is an original loop (`tools/gen_background.py`). To use your own, drop `custom.mp4` or `custom.webm` into `app/public/bg/`. For `.mp4` playback Ubuntu needs `sudo apt install gstreamer1.0-libav`.
+**Backgrounds**: `nebula` (an original loop from `tools/gen_background.py`) and `sea` (the underwater shipwreck). Drop `custom.mp4` or `custom.webm` into `app/public/bg/` and it joins the list. `.mp4` playback on Ubuntu needs `sudo apt install gstreamer1.0-libav` (the sea also ships as `.webm`, which plays without it).
+
+**Research** uses DuckDuckGo (free, no key) through the `ddgs` package; run `make setup` once to install it.
 
 The status under the core tells you what he's doing: LISTENING, HEARING YOU, THINKING, SPEAKING. If it says VOICE OFFLINE, the reason is shown next to it (usually a missing key or no microphone).
 

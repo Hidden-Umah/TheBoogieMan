@@ -1,5 +1,13 @@
 """Voice pipeline tests with fake mic, speaker, STT and TTS (no hardware, no network)."""
 
+import os
+import tempfile
+
+os.environ["BOOGEYMAN_VOICE"] = "0"
+for _k in ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "GROQ_API_KEY", "GROK_API_KEY", "LLM_API_KEY"):
+    os.environ[_k] = ""
+os.environ.setdefault("BOOGEYMAN_DATA", tempfile.mkdtemp())
+
 import asyncio
 
 import httpx
@@ -249,3 +257,115 @@ def test_shutdown_commands():
     assert c.handle("what was the shutdown rate of factories in Ghana last year") is None
     assert c.handle("tell me a joke") is None
     assert c.pending_since is None
+
+
+def test_more_shutdown_phrasing_and_ui_commands():
+    from commands import Commands
+
+    c = Commands()
+    for phrase in ["Shut it down", "Boogeyman, go to sleep", "close yourself", "power down", "turn yourself off", "quit"]:
+        c.pending_since = None
+        out = c.handle(phrase)
+        assert out and out[1] is None and "?" in out[0], phrase
+    c.pending_since = None
+    assert c.handle("shut it down now")[1] == "shutdown"
+    # Not commands:
+    c.pending_since = None
+    assert c.handle("turn off the lights") is None
+    assert c.handle("how do I switch off my router") is None
+    # Work mode and backgrounds.
+    assert c.handle("Alright, let's get to work.")[1] == "work"
+    assert c.handle("back to normal")[1] == "normal"
+    assert c.handle("change the background")[1] == "bg:next"
+    assert c.handle("put the sea background")[1] == "bg:sea"
+    assert c.handle("space background please")[1] == "bg:nebula"
+    assert c.handle("turn the background off")[1] == "bg:off"
+
+
+def test_research_pipeline_emits_everything():
+    import json
+
+    from research import Research
+
+    events = []
+
+    async def emit(t, p):
+        events.append((t, p))
+
+    async def complete(system, prompt):
+        if "plan" in system:
+            return '```json\n{"queries": ["ghana news today", "ghana headlines"], "news": true}\n```'
+        assert "[1]" in prompt and "Reading body" in prompt
+        return json.dumps({"findings": ["Cedi steadies against the dollar [1]", "New rail line opens [2]"], "summary": "Two big stories today, boss.", "confidence": 82})
+
+    def search(q, news):
+        assert news is True
+        return [
+            {"title": f"{q} one", "url": f"https://www.example.com/{q}/1", "snippet": "s1", "date": "2026-11-23"},
+            {"title": f"{q} two", "url": f"https://news.site.gh/{q}/2", "snippet": "s2"},
+        ]
+
+    def extract(url):
+        return "Reading body " * 20
+
+    r = Research(emit, complete, search, extract, pace=0)
+    out = asyncio.run(r.run("top news in Ghana"))
+    kinds = [t for t, _ in events]
+    assert kinds[0] == "task.start" and kinds[-1] == "task.done"
+    assert ("task.queries", {"id": events[0][1]["id"], "queries": ["ghana news today", "ghana headlines"]}) in events
+    assert sum(1 for t in kinds if t == "task.source") == 4
+    assert any(t == "task.reading" for t in kinds)
+    steps = [(p["key"], p["status"]) for t, p in events if t == "task.step"]
+    assert ("plan", "done") in steps and ("analyze", "done") in steps
+    assert [p["text"] for t, p in events if t == "task.finding"] == ["Cedi steadies against the dollar [1]", "New rail line opens [2]"]
+    assert out["summary"] == "Two big stories today, boss."
+    done = events[-1][1]
+    assert done["sources"] == 4 and done["findings"]
+
+
+def test_research_offline_and_without_llm():
+    from research import Research
+
+    events = []
+
+    async def emit(t, p):
+        events.append((t, p))
+
+    def dead(q, news):
+        raise OSError("no network")
+
+    out = asyncio.run(Research(emit, None, dead, lambda u: "", pace=0).run("anything"))
+    assert "internet" in out["summary"] and events[-1][0] == "task.done"
+
+    events.clear()
+    out = asyncio.run(Research(emit, None, lambda q, n: [{"title": "T", "url": "https://a.com/x", "snippet": "s"}], lambda u: "body", pace=0).run("x"))
+    assert out["findings"] == ["T [1]"]
+
+
+def test_llm_can_shut_down():
+    import json
+
+    import main
+
+    calls = []
+
+    def handler(request: httpx.Request):
+        body = json.loads(request.content)
+        calls.append(body)
+        if body["messages"][-1]["role"] == "user":
+            call = {"id": "s1", "type": "function", "function": {"name": "shutdown", "arguments": json.dumps({"now": True})}}
+            return httpx.Response(200, json={"choices": [{"message": {"content": "", "tool_calls": [call]}}]})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "Later, boss."}}]})
+
+    r = main.replier
+    old = (r.provider, r.key, r.base, r.http, r.memory)
+    try:
+        r.provider, r.key, r.base = "groq", "k", "https://api.groq.com/openai/v1"
+        r.http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        r.memory = tmp_memory()
+        assert asyncio.run(main.think("Boogeyman, I'm tired of you, disappear for the day")) == "Later, boss."
+        assert main.state["action"] == "shutdown"
+        assert any(t["function"]["name"] == "shutdown" for t in calls[0]["tools"])
+    finally:
+        r.provider, r.key, r.base, r.http, r.memory = old
+        main.state["action"] = None
