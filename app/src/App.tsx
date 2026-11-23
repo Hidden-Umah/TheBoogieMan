@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import BootScreen from './components/BootScreen'
 import CommandBar from './components/CommandBar'
-import Eye, { type EyeState } from './components/Eye'
 import HudFrame from './components/HudFrame'
 import InfoPanel, { type Info } from './components/InfoPanel'
 import LogPanel, { type LogLevel, type LogLine } from './components/LogPanel'
-import Starfield from './components/Starfield'
+import Scene from './three/Scene'
+import type { EyeState } from './types'
 import { brainStatus, onBrainStatus, sendToBrain, type BrainReply } from './lib/brain'
 
 // Flavour lines that tick through the log while idle.
@@ -110,20 +110,15 @@ export default function App() {
     }
   }
 
-  const warp = eyeState === 'thinking' ? 6 : eyeState === 'speaking' ? 2 : 1
-
   return (
     <div className="app">
-      <Starfield speed={booted ? warp : 0.6} />
+      <Scene state={eyeState} booted={booted} />
       {!booted ? (
         <BootScreen connected={connected} onDone={() => setBooted(true)} />
       ) : (
         <div className="hud">
           <HudFrame state={eyeState} connected={connected} latency={latency} startedAt={startedAt.current} />
           <LogPanel lines={logs} />
-          <div className="center">
-            <Eye state={eyeState} />
-          </div>
           <InfoPanel info={info} onClose={() => setInfo(null)} />
           <CommandBar disabled={!connected} busy={busy} onSubmit={command} />
         </div>
