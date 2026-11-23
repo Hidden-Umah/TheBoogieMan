@@ -14,6 +14,8 @@ The model can call tools (remember / forget) in a short loop before answering.
 from __future__ import annotations
 
 import json
+import os
+import time
 import logging
 import random
 from collections.abc import Awaitable, Callable
@@ -31,6 +33,15 @@ HERE = Path(__file__).parent
 FALLBACK_GREETINGS = ["Hello, boss.", "I'm here, boss.", "Hey, boss. I'm listening."]
 GROQ_URL = "https://api.groq.com/openai/v1"
 MAX_TOOL_ROUNDS = 4
+HISTORY_TO_LLM = int(os.environ.get("BOOGEYMAN_HISTORY", "12"))  # messages of recent chat sent with each turn
+# Groq's free tier limits each model separately (per minute and per day). When one is used up,
+# he moves on to the next instead of going quiet.
+GROQ_FALLBACKS = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b", "llama-3.1-8b-instant"]
+
+
+class AllLimited(Exception):
+    def __init__(self, wait: float):
+        self.wait = wait
 
 DEFAULT_MODEL = {
     "anthropic": "claude-haiku-5-5",
@@ -85,6 +96,7 @@ class Replier:
         # Extra tools registered by the app: name -> (schema, async handler(args) -> result str)
         self.extra: dict[str, tuple[dict[str, Any], Callable[[dict[str, Any]], Awaitable[str]]]] = {}
         self.http = http or httpx.AsyncClient(timeout=httpx.Timeout(40.0, connect=10.0))
+        self._cooldown: dict[str, float] = {}  # model -> monotonic time it can be used again
         self.provider = resolve_provider(provider, anthropic_key, groq_key, openai_key)
         self.model = model or DEFAULT_MODEL.get(self.provider, "")
         self.key = {"anthropic": anthropic_key, "groq": groq_key, "openai": openai_key}.get(self.provider)
@@ -105,7 +117,38 @@ class Replier:
 
     @property
     def history(self) -> list[dict[str, str]]:
-        return self.memory.history
+        return self.memory.history[-HISTORY_TO_LLM:] if HISTORY_TO_LLM > 0 else []
+
+    def _chain(self) -> list[str]:
+        if self.provider != "groq":
+            return [self.model]
+        return [self.model] + [m for m in GROQ_FALLBACKS if m != self.model]
+
+    async def _chat(self, body: dict[str, Any]) -> dict[str, Any]:
+        """POST a chat completion, falling back to the next free model when one is rate-limited."""
+        now = time.monotonic()
+        waits: list[float] = []
+        for model in self._chain():
+            until = self._cooldown.get(model, 0)
+            if until > now:
+                waits.append(until - now)
+                continue
+            b = dict(body, model=model)
+            b.pop("reasoning_effort", None)
+            if "gpt-oss" in model:
+                b["reasoning_effort"] = "low"  # keep voice replies snappy
+            r = await self.http.post(f"{self.base}/chat/completions", headers={"Authorization": f"Bearer {self.key}"}, json=b)
+            if r.status_code == 429 or (r.status_code in (400, 404) and model != self.model and "model" in r.text.lower()):
+                wait = _retry_after(r) if r.status_code == 429 else 3600.0
+                self._cooldown[model] = now + wait
+                waits.append(wait)
+                log.warning("%s limited (%s), resting it %.0fs; trying the next model", model, r.status_code, wait)
+                continue
+            r.raise_for_status()
+            if model != self.model:
+                log.info("answered with fallback model %s", model)
+            return r.json()
+        raise AllLimited(min(waits) if waits else 60.0)
 
     def system_prompt(self) -> str:
         parts = [load_text("persona.md") or "You are the Boogeyman, the boss's personal AI. Speak briefly."]
@@ -126,6 +169,14 @@ class Replier:
             return fallback(text)
         try:
             out = await (self._anthropic(text) if self.anthropic else self._openai_compatible(text))
+        except AllLimited as e:
+            mins = max(1, round(e.wait / 60))
+            log.warning("every model is rate-limited; shortest wait %.0fs", e.wait)
+            return (
+                f"I hit the free limit on all my brains, boss. Give me about {mins} minute{'s' if mins > 1 else ''}."
+                if mins < 60
+                else "I've used up today's free limit, boss. It resets later today."
+            )
         except httpx.HTTPStatusError as e:
             code = e.response.status_code
             log.warning("%s error %s: %s", self.provider, code, e.response.text[:300])
@@ -187,11 +238,8 @@ class Replier:
             "max_tokens": 900,
             "temperature": 0.3,
         }
-        if "gpt-oss" in self.model:
-            body["reasoning_effort"] = "low"
-        r = await self.http.post(f"{self.base}/chat/completions", headers={"Authorization": f"Bearer {self.key}"}, json=body)
-        r.raise_for_status()
-        return str(r.json()["choices"][0]["message"].get("content") or "")
+        data = await self._chat(body)
+        return str(data["choices"][0]["message"].get("content") or "")
 
     # ── OpenAI-compatible (Groq, Gemini, OpenRouter...) ──
     async def _openai_compatible(self, text: str) -> str:
@@ -210,13 +258,7 @@ class Replier:
                 "tools": tools,
                 "tool_choice": "auto",
             }
-            if "gpt-oss" in self.model:
-                body["reasoning_effort"] = "low"  # keep voice replies snappy
-            r = await self.http.post(
-                f"{self.base}/chat/completions", headers={"Authorization": f"Bearer {self.key}"}, json=body
-            )
-            r.raise_for_status()
-            msg = r.json()["choices"][0]["message"]
+            msg = (await self._chat(body))["choices"][0]["message"]
             calls = msg.get("tool_calls") or []
             if not calls:
                 return str(msg.get("content") or "")
@@ -264,6 +306,23 @@ def resolve_provider(provider: str, anthropic_key: str | None, groq_key: str | N
         log.warning("LLM_PROVIDER=%s but its key is missing; using built-in replies", provider)
         return "none"
     return provider if provider in have else "none"
+
+
+def _retry_after(r: httpx.Response) -> float:
+    """How long Groq says to wait: Retry-After header, else 'try again in 1m2.5s' in the body."""
+    h = r.headers.get("retry-after")
+    if h:
+        try:
+            return max(1.0, float(h))
+        except ValueError:
+            pass
+    import re
+
+    m = re.search(r"try again in (?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?", r.text)
+    if m and any(m.groups()):
+        h_, m_, s_ = m.groups()
+        return max(1.0, int(h_ or 0) * 3600 + int(m_ or 0) * 60 + float(s_ or 0))
+    return 60.0
 
 
 def fallback(text: str) -> str:

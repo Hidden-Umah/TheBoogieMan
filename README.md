@@ -90,6 +90,8 @@ The window opens, Rust starts the Python brain, and after the boot screen he gre
 
 The model also has these as **tools** (`shutdown`, `switch_screen`, `set_background`, `show_commands`, `clear_conversation`, `research`), so any phrasing works, e.g. "abeg close yourself" or "take me back home". The terminal logs `heard:`, `command:` and `tool:` lines for every turn, which is the first place to look if something doesn't fire.
 
+**Free limits**: Groq's free tier caps each model per minute and per day. When one model is used up he switches to the next (`gpt-oss-120b` → `llama-3.3-70b-versatile` → `gpt-oss-20b` → `llama-3.1-8b-instant`), rests the tired one, and only tells you to wait if every model is out. Only the last 12 messages go with each turn (`BOOGEYMAN_HISTORY` in `brain/.env` to change).
+
 **Backgrounds**: `nebula` (an original loop from `tools/gen_background.py`) and `sea` (the underwater shipwreck). Drop `custom.mp4` or `custom.webm` into `app/public/bg/` and it joins the list. `.mp4` playback on Ubuntu needs `sudo apt install gstreamer1.0-libav` (the sea also ships as `.webm`, which plays without it).
 
 **Research** uses DuckDuckGo (free, no key) through the `ddgs` package; run `make setup` once to install it.
