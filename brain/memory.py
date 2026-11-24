@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -19,10 +20,16 @@ MAX_FACTS = 300
 
 
 def data_dir() -> Path:
-    base = os.environ.get("BOOGEYMAN_DATA") or os.path.join(
-        os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "boogeyman"
-    )
-    return Path(base)
+    """Linux: ~/.local/share/boogeyman. Windows: %APPDATA%\\boogeyman. macOS: ~/Library/Application Support/boogeyman."""
+    if os.environ.get("BOOGEYMAN_DATA"):
+        return Path(os.environ["BOOGEYMAN_DATA"])
+    if sys.platform == "win32":
+        root = os.environ.get("APPDATA") or os.path.expanduser("~\\AppData\\Roaming")
+    elif sys.platform == "darwin":
+        root = os.path.expanduser("~/Library/Application Support")
+    else:
+        root = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+    return Path(root) / "boogeyman"
 
 
 def now() -> str:
