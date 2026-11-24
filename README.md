@@ -31,8 +31,8 @@ If you already have Rust, Node 20+ and the Tauri system packages:
 git clone https://github.com/Hidden-Umah/TheBoogieMan.git
 cd TheBoogieMan
 make setup        # npm install + Python venv
-make env          # creates brain/.env from brain/.env.example
-# open brain/.env and paste ELEVENLABS_API_KEY and GROQ_API_KEY
+make env          # creates .env from .env.example
+# open .env and paste ELEVENLABS_API_KEY and GROQ_API_KEY
 make dev          # opens the app
 ```
 
@@ -86,13 +86,13 @@ This runs `npm install` in `app/` and creates the Python virtualenv in `brain/.v
 
 ## 3. Get your API keys
 
-All keys live in **`brain/.env`**. Create it from the template:
+All keys live in **`.env`**. Create it from the template:
 
 ```bash
-make env          # same as: cp brain/.env.example brain/.env
+make env          # same as: cp .env.example .env
 ```
 
-Then open `brain/.env` and paste your keys. [`brain/.env.example`](brain/.env.example) has every setting, with step-by-step instructions inside.
+Then open `.env` (in the project root) and paste your keys. [`.env.example`](.env.example) has every setting, with step-by-step instructions inside.
 
 | Key | What it does | Cost | Required? |
 |-----|--------------|------|-----------|
@@ -123,7 +123,8 @@ Groq's free tier has per-minute and per-day limits. When one model runs out, he 
 
 ### Rules for keys
 
-- `brain/.env` is **gitignored**. Never commit it, and never put keys in `.env.example`, issues or chat.
+- Already have keys in `brain/.env` from an older setup? That still works. If both files exist, `brain/.env` wins.
+- `.env` is **gitignored**. Never commit it, and never put keys in `.env.example`, issues or chat.
 - Keys are only read by the Python brain. They never reach the UI.
 - Without a brain key he still hears and speaks, but only knows a few built-in lines and the instant commands.
 - At startup the terminal prints which brain he's using, e.g. `brain: groq:openai/gpt-oss-120b`.
@@ -194,7 +195,7 @@ Start with the **terminal running `make dev`**. Every turn logs `heard:`, `comma
 | Problem | Fix |
 |---------|-----|
 | VOICE OFFLINE | Check `ELEVENLABS_API_KEY` and its permissions (above). Check a mic is connected. To pick a specific mic, run `brain/.venv/bin/python -m sounddevice` and set `BOOGEYMAN_MIC` to its name or index. |
-| He only says canned lines | No brain key. Set `GROQ_API_KEY` (or another provider) in `brain/.env` and restart. |
+| He only says canned lines | No brain key. Set `GROQ_API_KEY` (or another provider) in `.env` and restart. |
 | "I hit the free limit…" | Every free Groq model is rate-limited. Wait the time he says, or lower `BOOGEYMAN_HISTORY` so each reply uses fewer tokens. |
 | He cuts himself off while talking | His own voice from the speakers sounds like you talking. Use headphones, set `BOOGEYMAN_BARGE_LEVEL=1.5`, or `BOOGEYMAN_BARGE_IN=0`. |
 | He insists he "can't" do something | Old replies in his history. Say "clear our conversation" once. |
@@ -240,7 +241,7 @@ brain/
   research.py         plan → search → read → analyze
   memory.py           facts + recent conversation
   persona.md          his personality
-  .env.example        every setting and key, documented
+.env.example          every setting and key, documented (copy to .env)
 shared/messages.md    message protocol
 docs/OVERVIEW.md      architecture and decisions
 tools/                asset generators (the nebula background)
