@@ -15,13 +15,20 @@ fn brain_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../brain")
 }
 
-/// Prefer the brain's own virtualenv, fall back to system python3.
+/// Prefer the brain's own virtualenv, fall back to the system Python.
 fn python_bin(dir: &Path) -> PathBuf {
     if let Ok(py) = std::env::var("BOOGEYMAN_PYTHON") {
         return PathBuf::from(py);
     }
-    let venv = dir.join(".venv/bin/python");
-    if venv.exists() { venv } else { PathBuf::from("python3") }
+    // Windows venvs keep the interpreter in Scripts\python.exe; everyone else in bin/python.
+    let venv = if cfg!(windows) { dir.join(".venv").join("Scripts").join("python.exe") } else { dir.join(".venv/bin/python") };
+    if venv.exists() {
+        venv
+    } else if cfg!(windows) {
+        PathBuf::from("python")
+    } else {
+        PathBuf::from("python3")
+    }
 }
 
 /// Ask the OS for a free localhost port.
@@ -48,11 +55,15 @@ pub fn spawn(port: u16) -> std::io::Result<Child> {
             Ok(())
         });
     }
+    // Windows: run the brain without popping up its own console window.
+    #[cfg(windows)]
+    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     let mut child = cmd
         .arg("main.py")
         .current_dir(&dir)
         .env("BOOGEYMAN_BRAIN_PORT", port.to_string())
         .env("PYTHONUNBUFFERED", "1")
+        .env("PYTHONIOENCODING", "utf-8") // Windows consoles default to a legacy code page
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true)

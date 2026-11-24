@@ -4,7 +4,7 @@ A personal, voice-first desktop AI assistant for Linux, in the spirit of Jarvis.
 
 > "Welcome back, boss. I'm listening."
 
-**Platform:** Ubuntu 22.04 / 24.04 (other Linux distros with WebKitGTK 4.1 should work). macOS and Windows aren't supported yet.
+**Platform:** Ubuntu 22.04 / 24.04 (other Linux distros with WebKitGTK 4.1 should work). **Windows 10/11: see [WINDOWS.md](WINDOWS.md)** (early support). macOS isn't supported yet.
 
 ---
 
@@ -183,7 +183,7 @@ The phrases above are instant commands and work even without a brain key. The AI
 
 - **Personality:** edit [`brain/persona.md`](brain/persona.md) (tone, languages, rules). It applies on the next reply, with no restart.
 - **About you:** copy `brain/boss.example.md` to `brain/boss.md` (gitignored) and write about yourself: name, work, what you care about.
-- **Memory:** stored in `~/.local/share/boogeyman/memory.json` (facts plus recent conversation). Delete the file to wipe it.
+- **Memory:** stored in `~/.local/share/boogeyman/memory.json` (Windows: `%APPDATA%\boogeyman`) (facts plus recent conversation). Delete the file to wipe it.
 - **Backgrounds:** put `custom.mp4` or `custom.webm` in `app/public/bg/` and it joins the list.
 
 ---
