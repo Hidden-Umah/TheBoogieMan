@@ -1,4 +1,4 @@
-.PHONY: setup setup-app setup-brain dev test build clean
+.PHONY: setup setup-app setup-brain env dev test build clean
 
 # One-time setup: installs JS deps and the Python brain's virtualenv.
 setup: setup-app setup-brain
@@ -8,6 +8,11 @@ setup-app:
 
 setup-brain:
 	cd brain && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+
+# Creates brain/.env from the example (won't overwrite an existing one). Then paste your keys in it.
+env:
+	@if [ -f brain/.env ]; then echo "brain/.env already exists; edit it directly."; \
+	else cp brain/.env.example brain/.env && echo "Created brain/.env. Open it and paste your keys."; fi
 
 # Opens the Boogeyman window. Starts Vite, builds Rust, and Rust spawns the Python brain.
 dev:
