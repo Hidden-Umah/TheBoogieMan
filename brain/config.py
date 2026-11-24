@@ -8,7 +8,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+# Keys live in .env at the repo root (copy .env.example). brain/.env still works too and wins if both exist.
 load_dotenv(Path(__file__).with_name(".env"))
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 @dataclass(frozen=True)
